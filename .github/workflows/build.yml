@@ -1,42 +1,42 @@
-name: Build Harman AIR iOS IPA
+name: Build Henry Stickmin iOS
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-ios:
+  build-unsigned-ipa:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
+      - name: Code Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Initialize Environment
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Download Harman AIR SDK
+      - name: Force Download Harman SDK
         run: |
-          wget --no-check-certificate https://harman.com -O air_sdk.zip
-          unzip air_sdk.zip -d air_sdk_folder
+          wget --no-check-certificate 'https://airsdk.harman.com/api/v1/downloads/core/adobe-air-sdk-linux.zip' -O harman_core_sdk.zip
+          unzip -q harman_core_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      - name: Download Original PC Game Assets
+      - name: Fetch Clean Game Files
         run: |
-          wget --no-check-certificate https://archive.org -O game.zip
-          unzip game.zip -d game_files
+          wget --no-check-certificate 'https://archive.org' -O game_source_pc.zip
+          unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
-      - name: Compile Unsigned IPA
+      - name: Packaging iOS App
         run: |
           ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
 
-      - name: Upload IPA Artifact
+      - name: Distribute Artifact
         uses: actions/upload-artifact@v4
         with:
           name: HenryStickmin-unsigned-ipa
