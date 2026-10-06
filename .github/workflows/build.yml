@@ -16,10 +16,15 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Force Download Harman SDK
+      - name: Install AIR SDK Manager
         run: |
-          wget --no-check-certificate 'https://airsdk.harman.com/api/v1/downloads/core/adobe-air-sdk-linux.zip' -O harman_core_sdk.zip
-          unzip -q harman_core_sdk.zip -d air_sdk_folder
+          # Качаємо офіційний менеджер релізів HARMAN з GitHub
+          wget --no-check-certificate 'https://github.com' -O manager.zip
+          unzip -q manager.zip -d manager_folder
+          chmod +x manager_folder/airsdkmanager
+          
+          # Запускаємо менеджер, щоб він сам чисто скачав останню стабільну версію SDK
+          ./manager_folder/airsdkmanager --install --path="$GITHUB_WORKSPACE/air_sdk_folder"
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Fetch Clean Game Files
