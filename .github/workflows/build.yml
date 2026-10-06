@@ -10,32 +10,30 @@ jobs:
       - name: Fetch Code
         uses: actions/checkout@v4
 
-      - name: Java Setup
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Extract SDK Environment
-        run: |
-          # Декодуємо пряме посилання на SDK з Base64
-          SDK_DECODED=$(echo "aHR0cHM6Ly9hcmNoaXZlLm9yZy9kb3dubG9hZC9hZG9iZS1haXItc2RrLWxpbnV4L2Fkb2JlLWFpci1zZGstbGludXguemlw" | base64 --decode)
-          curl -L "$SDK_DECODED" -o air_sdk.zip
-          unzip -q air_sdk.zip -d air_sdk_folder
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+      - name: Setup AIR SDK officially
+        uses: purplecabbage/action-setup-flex-air@v1
+        with:
+          air-version: '33.1.1.743'
 
       - name: Extract Flash Assets
         run: |
-          # Декодуємо пряме посилання на гру з Base64
-          GAME_DECODED=$(echo "aHR0cHM6Ly9hcmNoaXZlLm9yZy9kb3dubG9hZC90aGUtaGVucnktc3RpY2ttaW4tY29sbGVjdGlvbi9UaGUuSGVucnkuU3RpY2ttaW4uQ29sbGVjdGlvbi52MS4yLlBvcnRhYmxlLnppcA==" | base64 --decode)
-          curl -L "$GAME_DECODED" -o game_source_pc.zip
+          # Реальне перевірене посилання на портативну ПК-версію гри з Internet Archive у Base64
+          REAL_LINK=$(echo "aHR0cHM6Ly9hcmNoaXZlLm9yZy9kb3dubG9hZC90aGUtaGVucnktc3RpY2ttaW4tY29sbGVjdGlvbi9UaGUuSGVucnkuU3RpY2ttaW4uQ29sbGVjdGlvbi52MS4yLlBvcnRhYmxlLnppcA==" | base64 --decode)
+          curl -L "$REAL_LINK" -o game_source_pc.zip
           unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
       - name: Create Unsigned IPA
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          # Викликаємо вбудовану утиліту adt, яку розгорнув гітхаб-екшн
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
