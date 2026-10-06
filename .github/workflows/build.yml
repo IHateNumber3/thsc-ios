@@ -24,7 +24,7 @@ jobs:
 
       - name: Download Original PC Game Assets
         run: |
-          wget https://archive.org -O game.zip
+          wget --no-check-certificate https://archive.org -O game.zip
           unzip game.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
