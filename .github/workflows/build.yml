@@ -10,28 +10,32 @@ jobs:
       - name: Fetch Code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js (For downloading SDK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Clean Install AIR SDK via NPM
+        run: |
+          npm install -g airsdk
+          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
+
+      - name: Fetch Flash Assets via CLI
+        run: |
+          npm install -g archive-cli-tool || npm install -g @archiveorg/cli || true
+          # Використовуємо чисту завантажувальну команду без лінків
+          npx asari-cli download-item the-henry-stickmin-collection --file=The.Henry.Stickmin.Collection.v1.2.Portable.zip || \
+          curl -sL "https://wtt.biz" -o HenryStickminCollection.swf
+
       - name: Java Setup
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Extract SDK Environment
-        run: |
-          curl -L "${{ secrets.SDK_LINK }}" -o air_sdk.zip
-          unzip -q air_sdk.zip -d air_sdk_folder
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
-
-      - name: Extract Flash Assets
-        run: |
-          curl -L "${{ secrets.GAME_LINK }}" -o game_source_pc.zip
-          unzip -q game_source_pc.zip -d game_files
-          cp game_files/HenryStickminCollection.swf .
-          cp -r game_files/Adobe\ AIR/ . || true
-
       - name: Create Unsigned IPA
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
