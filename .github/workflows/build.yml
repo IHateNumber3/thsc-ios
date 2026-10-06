@@ -3,10 +3,6 @@ name: Build Henry Stickmin iOS
 on:
   workflow_dispatch:
 
-env:
-  AIR_SDK_URL: "https://github.com"
-  GAME_URL: "https://archive.org"
-
 jobs:
   build-unsigned-ipa:
     runs-on: ubuntu-latest
@@ -20,18 +16,16 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Setup Harman SDK via Manager
+      - name: Download Harman AIR SDK Direct
         run: |
-          curl -L $AIR_SDK_URL -o manager.zip
-          unzip -q manager.zip -d manager_folder
-          chmod +x manager_folder/airsdkmanager
-          ./manager_folder/airsdkmanager --install --path=$GITHUB_WORKSPACE/air_sdk_folder
+          curl -L "https://archive.org" -o air_sdk.zip
+          unzip -q air_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      - name: Fetch Game Files
+      - name: Fetch Clean Game Files
         run: |
-          curl -L $GAME_URL -o game_source.zip
-          unzip -q game_source.zip -d game_files
+          curl -L "https://archive.org" -o game_source_pc.zip
+          unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
