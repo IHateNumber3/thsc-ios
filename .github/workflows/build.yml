@@ -16,22 +16,26 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Setup Archive Tools
+      - name: Setup Harman SDK via Manager
         run: |
-          sudo pip install internetarchive
-
-      - name: Extract SDK Environment
-          # Завантажуємо файл за його коротким ID через офіційну утиліту ia
-        run: |
-          ia download adobe-air-sdk-linux adobe-air-sdk-linux.zip --no-directories
-          unzip -q adobe-air-sdk-linux.zip -d air_sdk_folder
+          # Розбиваємо лінк на шматки, щоб мобільний Safari не зміг його врізати
+          PART1="https://github.com"
+          PART2="/releases/download/v1.1.2/airsdkmanager-linux-x64.zip"
+          curl -L "${PART1}${PART2}" -o manager.zip
+          
+          unzip -q manager.zip -d manager_folder
+          chmod +x manager_folder/airsdkmanager
+          ./manager_folder/airsdkmanager --install --path=$GITHUB_WORKSPACE/air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Extract Flash Assets
-          # Завантажуємо оригінальну гру за її коротким ID через утиліту ia
         run: |
-          ia download the-henry-stickmin-collection The.Henry.Stickmin.Collection.v1.2.Portable.zip --no-directories
-          unzip -q The.Henry.Stickmin.Collection.v1.2.Portable.zip -d game_files
+          # Склеюємо лінк на гру з веб-архіву
+          G1="https://archive.org"
+          G2="/The.Henry.Stickmin.Collection.v1.2.Portable.zip"
+          curl -L "${G1}${G2}" -o game_source_pc.zip
+          
+          unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
