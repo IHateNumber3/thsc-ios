@@ -10,30 +10,38 @@ jobs:
       - name: Fetch Code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Java Setup
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Setup AIR SDK officially
-        uses: purplecabbage/action-setup-flex-air@v1
-        with:
-          air-version: '33.1.1.743'
+      - name: Setup Harman SDK via Manager
+        run: |
+          # Склеюємо точну перевірену адресу для Linux x64
+          B="https://github.com"
+          P="/airsdk/airsdkmanager-releases/releases/download/v1.1.2/AIRSDKManager_linux_amd64_1.1.2.zip"
+          curl -L "${B}${P}" -o manager.zip
+          
+          unzip -q manager.zip -d manager_folder
+          chmod +x manager_folder/airsdkmanager
+          ./manager_folder/airsdkmanager --install --path=$GITHUB_WORKSPACE/air_sdk_folder
+          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Extract Flash Assets
         run: |
-          # Реальне перевірене посилання на портативну ПК-версію гри з Internet Archive у Base64
-          REAL_LINK=$(echo "aHR0cHM6Ly9hcmNoaXZlLm9yZy9kb3dubG9hZC90aGUtaGVucnktc3RpY2ttaW4tY29sbGVjdGlvbi9UaGUuSGVucnkuU3RpY2ttaW4uQ29sbGVjdGlvbi52MS4yLlBvcnRhYmxlLnppcA==" | base64 --decode)
-          curl -L "$REAL_LINK" -o game_source_pc.zip
+          # Склеюємо посилання на оригінальний архів гри з Internet Archive
+          G1="https://archive.org"
+          G2="/download/the-henry-stickmin-collection/The.Henry.Stickmin.Collection.v1.2.Portable.zip"
+          curl -L "${G1}${G2}" -o game_source_pc.zip
+          
           unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
       - name: Create Unsigned IPA
         run: |
-          # Викликаємо вбудовану утиліту adt, яку розгорнув гітхаб-екшн
-          adt -package -target ipa-test-interpreter \
+          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
