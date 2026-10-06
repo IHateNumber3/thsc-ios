@@ -18,7 +18,7 @@ jobs:
 
       - name: Download Harman AIR SDK
         run: |
-          wget https://harman.com -O air_sdk.zip
+          wget --no-check-certificate https://harman.com -O air_sdk.zip
           unzip air_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
