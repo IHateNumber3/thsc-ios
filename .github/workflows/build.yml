@@ -18,14 +18,19 @@ jobs:
 
       - name: Setup Harman SDK via Manager
         run: |
-          # Склеюємо точну перевірену адресу для Linux x64
+          # Склеиваем точную перевірену адресу для Linux x64
           B="https://github.com"
           P="/airsdk/airsdkmanager-releases/releases/download/v1.1.2/AIRSDKManager_linux_amd64_1.1.2.zip"
           curl -L "${B}${P}" -o manager.zip
           
           unzip -q manager.zip -d manager_folder
-          chmod +x manager_folder/airsdkmanager
-          ./manager_folder/airsdkmanager --install --path=$GITHUB_WORKSPACE/air_sdk_folder
+          
+          # Находим точный путь к бинарнику, игнорируя регистр букв и подпапки
+          EXE_PATH=$(find manager_folder -type f -iname "*airsdkmanager*" | head -n 1)
+          chmod +x "$EXE_PATH"
+          
+          # Запускаем его для установки SDK
+          "$EXE_PATH" --install --path=$GITHUB_WORKSPACE/air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Extract Flash Assets
