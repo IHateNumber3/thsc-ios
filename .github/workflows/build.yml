@@ -18,21 +18,13 @@ jobs:
 
       - name: Extract SDK Environment
         run: |
-          # Склеюємо просте дзеркало SDK без довгих посилань
-          URL1="https://archive.org"
-          URL2="/adobe-air-sdk-linux/adobe-air-sdk-linux.zip"
-          curl -L "${URL1}${URL2}" -o air_sdk.zip
-          
+          curl -L "${{ secrets.SDK_LINK }}" -o air_sdk.zip
           unzip -q air_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Extract Flash Assets
         run: |
-          # Склеюємо посилання на оригінальний архів гри
-          G1="https://archive.org/the-henry-stickmin-collection"
-          G2="/The.Henry.Stickmin.Collection.v1.2.Portable.zip"
-          curl -L "${G1}${G2}" -o game_source_pc.zip
-          
+          curl -L "${{ secrets.GAME_LINK }}" -o game_source_pc.zip
           unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
