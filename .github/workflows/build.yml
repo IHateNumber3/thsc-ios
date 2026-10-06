@@ -16,20 +16,17 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install AIR SDK Manager
+      - name: Setup Harman SDK via Manager
         run: |
-          # Качаємо офіційний менеджер релізів HARMAN з GitHub
-          wget --no-check-certificate 'https://github.com' -O manager.zip
+          wget --no-check-certificate "https://github.com" -O manager.zip
           unzip -q manager.zip -d manager_folder
           chmod +x manager_folder/airsdkmanager
-          
-          # Запускаємо менеджер, щоб він сам чисто скачав останню стабільну версію SDK
           ./manager_folder/airsdkmanager --install --path="$GITHUB_WORKSPACE/air_sdk_folder"
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       - name: Fetch Clean Game Files
         run: |
-          wget --no-check-certificate 'https://archive.org' -O game_source_pc.zip
+          wget --no-check-certificate "https://archive.org" -O game_source_pc.zip
           unzip -q game_source_pc.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
