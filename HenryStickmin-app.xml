@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<application xmlns="http://harman.com">
+    <id>com.slavuta.henrystickmin</id>
+    <versionNumber>1.0.0</versionNumber>
+    <filename>HenryStickmin</filename>
+    <name>Henry Stickmin Collection</name>
+    <initialWindow>
+        <content>HenryStickminCollection.swf</content>
+        <visible>true</visible>
+        <fullScreen>true</fullScreen>
+        <aspectRatio>landscape</aspectRatio>
+        <renderMode>direct</renderMode>
+    </initialWindow>
+    <touchCapabilities>
+        <touchMode>gesture</touchMode> <!-- Включает долгий тап как ПКМ -->
+    </touchCapabilities>
+    <iPhone>
+        <InfoAdditions><![CDATA[
+            <key>UIDeviceFamily</key>
+            <array>
+                <string>1</string>
+                <string>2</string>
+            </array>
+        ]]></InfoAdditions>
+        <requestedDisplayResolution>high</requestedDisplayResolution>
+    </iPhone>
+</application>
