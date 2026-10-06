@@ -1,46 +1,48 @@
-name: Build Henry Stickmin iOS
+name: Super Henry Port iOS
 
 on:
   workflow_dispatch:
 
-env:
-  SDK_LINK: https://archive.org
-  GAME_LINK: https://archive.org
-
 jobs:
-  build-unsigned-ipa:
+  compile-game:
     runs-on: ubuntu-latest
     steps:
-      - name: Code Checkout
+      - name: Fetch Code
         uses: actions/checkout@v4
 
-      - name: Initialize Environment
+      - name: Java Setup
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Download Harman AIR SDK Direct
+      - name: Setup Archive Tools
         run: |
-          curl -L "${{ env.SDK_LINK }}" -o air_sdk.zip
-          unzip -q air_sdk.zip -d air_sdk_folder
+          sudo pip install internetarchive
+
+      - name: Extract SDK Environment
+          # Завантажуємо файл за його коротким ID через офіційну утиліту ia
+        run: |
+          ia download adobe-air-sdk-linux adobe-air-sdk-linux.zip --no-directories
+          unzip -q adobe-air-sdk-linux.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      - name: Fetch Clean Game Files
+      - name: Extract Flash Assets
+          # Завантажуємо оригінальну гру за її коротким ID через утиліту ia
         run: |
-          curl -L "${{ env.GAME_LINK }}" -o game_source_pc.zip
-          unzip -q game_source_pc.zip -d game_files
+          ia download the-henry-stickmin-collection The.Henry.Stickmin.Collection.v1.2.Portable.zip --no-directories
+          unzip -q The.Henry.Stickmin.Collection.v1.2.Portable.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
-      - name: Packaging iOS App
+      - name: Create Unsigned IPA
         run: |
           ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
 
-      - name: Distribute Artifact
+      - name: Save Artifact
         uses: actions/upload-artifact@v4
         with:
           name: HenryStickmin-unsigned-ipa
