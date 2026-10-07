@@ -53,7 +53,7 @@ jobs:
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
 
-      # Шаг 5: Упаковка приложения в .ipa
+      # Упаковка iOS приложения в .ipa (с субтитрами *.txt, без json)
       - name: Package iOS App
         run: |
           adt -package \
@@ -63,7 +63,7 @@ jobs:
             -storepass certpassword \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
-            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
+            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
       # Шаг 6: Выгрузка готового .ipa в артефакты
       - name: Upload IPA Artifact
