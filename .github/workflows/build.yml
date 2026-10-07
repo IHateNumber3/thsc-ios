@@ -16,42 +16,28 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем DMG airsdkmanager, монтируем и устанавливаем AIR SDK
-      - name: Install Harman AIR SDK via Manager DMG
+      # Шаг 1: Скачиваем и устанавливаем официальный .pkg пакетом в систему macOS
+      - name: Install Harman AIR SDK via PKG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Скачиваем DMG из официальных релизов Harman airsdkmanager
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*mac*.dmg" --clobber
+          # 1. Скачиваем .pkg файл из релизов airsdkmanager
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          # 2. Монтируем DMG образ
-          DMG_FILE=$(ls *.dmg | head -n 1)
-          hdiutil attach "$DMG_FILE" -mountpoint /Volumes/AIRSDKManager
+          PKG_FILE=$(ls *.pkg | head -n 1)
+          echo "Found package: $PKG_FILE"
           
-          # 3. Находим исполняемый файл бинарника airsdkmanager
-          MGR_BIN=$(find /Volumes/AIRSDKManager -type f -name "airsdkmanager" | head -n 1)
+          # 2. Устанавливаем тихим образом в систему
+          sudo installer -pkg "$PKG_FILE" -target /
           
-          if [ -z "$MGR_BIN" ]; then
-            # Если бинарник лежит внутри .app бандла
-            MGR_BIN=$(find /Volumes/AIRSDKManager -path "*/Contents/MacOS/*" -type f | head -n 1)
-          fi
+          # 3. Ищем, куда установился бинарник adt
+          ADT_BIN=$(find /Library /usr/local /Applications -name "adt" -type f 2>/dev/null | head -n 1)
           
-          echo "Found manager at: $MGR_BIN"
-          
-          # 4. Скачиваем полноценный AIR SDK в рабочую папку
-          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
-          "$MGR_BIN" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree || true
-          
-          # 5. Размонтируем DMG
-          hdiutil detach /Volumes/AIRSDKManager || true
-          
-          # 6. Проверяем, что adt на месте, и прописываем в PATH
-          ADT_PATH=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
-          if [ -n "$ADT_PATH" ]; then
-            chmod -R +x "$(dirname "$ADT_PATH")"
-            echo "$(dirname "$ADT_PATH")" >> $GITHUB_PATH
+          if [ -n "$ADT_BIN" ]; then
+            echo "ADT found at: $ADT_BIN"
+            echo "$(dirname "$ADT_BIN")" >> $GITHUB_PATH
           else
-            echo "Failed to install AIR SDK via manager"
+            echo "ADT not found after pkg install"
             exit 1
           fi
 
@@ -67,7 +53,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка iOS приложения в .ipa
+      # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
