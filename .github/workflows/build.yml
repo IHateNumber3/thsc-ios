@@ -16,21 +16,14 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем архив AIR SDK напрямую с серверов Harman с эмуляцией браузера (User-Agent)
-      - name: Download Harman AIR SDK
+      # Шаг 1: Установка AIR SDK через официальный Homebrew tap от Harman
+      - name: Setup Harman AIR SDK via Homebrew
         run: |
-          mkdir -p air_sdk_folder
+          brew install airsdk/tap/airsdk
           
-          # Скачиваем с заголовоком User-Agent, чтобы обходить 403 от CDN Harman
-          curl -sSL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
-            "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/mac" -o air_sdk.zip
-          
-          # Распаковываем полученный zip напрямую
-          unzip -q air_sdk.zip -d air_sdk_folder
-          
-          # Настраиваем права на исполнение бинарников и добавляем adt в PATH
-          chmod -R +x ./air_sdk_folder/bin/
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+          # Проверяем путь к установленным бинарникам
+          AIR_PATH=$(brew --prefix airsdk)/bin
+          echo "$AIR_PATH" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
@@ -47,7 +40,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
