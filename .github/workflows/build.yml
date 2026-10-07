@@ -48,21 +48,19 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация сертификата и пустышки mobileprovision
-      - name: Generate Dummy Certificate & Provisioning Profile
+      # Шаг 4: Генерация PFX-сертификата
+      - name: Generate Dummy Certificate
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
-          echo "DUMMY_PROFILE" > profile.mobileprovision
 
-      # Шаг 5: Упаковка iOS приложения в .ipa (с подсунутым профилем)
+      # Шаг 5: Упаковка iOS приложения в .ipa без провижн-профиля
       - name: Package iOS App
         run: |
           adt -package \
-            -target ipa-test-interpreter \
+            -target ipa-test-interpreter-simulator \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
-            -provisioning-profile profile.mobileprovision \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
