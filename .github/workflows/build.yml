@@ -16,26 +16,29 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Step 1: Скачиваем и распаковываем Linux ZIP airsdkmanager
+      # Step 1: Скачиваем и распаковываем Linux AIR SDK Manager
       - name: Setup AIR SDK via Linux Manager
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Скачиваем zip для linux_amd64 из релизов
+          # 1. Скачиваем zip для linux
           gh release download --repo airsdk/airsdkmanager-releases --pattern "*linux_amd64*.zip" --clobber
           
           # 2. Распаковываем
           mkdir -p manager
           unzip -q *.zip -d manager
           
-          # 3. Даем права на исполнение
-          chmod +x manager/airsdkmanager
+          # 3. Находим исполняемый файл airsdkmanager
+          MGR_EXEC=$(find manager -type f -name "airsdkmanager*" | head -n 1)
+          chmod +x "$MGR_EXEC"
           
-          # 4. Скачиваем сам AIR SDK в папку air_sdk_folder
+          echo "Found manager at: $MGR_EXEC"
+          
+          # 4. Скачиваем сам AIR SDK
           mkdir -p air_sdk_folder
-          ./manager/airsdkmanager --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
+          "$MGR_EXEC" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
           
-          # 5. Проверяем права на adt и добавляем в PATH
+          # 5. Проверяем adt и добавляем в PATH
           chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
