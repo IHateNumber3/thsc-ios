@@ -5,47 +5,50 @@ on:
 
 jobs:
   build-unsigned-ipa:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
 
-      - name: Initialize Environment
-        uses: actions/setup-java@v3
+      - name: Initialize Java Environment
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '11'
+          java-version: '17'
 
-      # Шаг 1: Ставим чистый консольный AIR SDK
-      - name: Setup Harman AIR SDK Clean
+      # Шаг 1: Скачиваем и распаковываем AIR SDK
+      - name: Setup Harman AIR SDK
         run: |
-          wget --no-check-certificate "https://archive.org" -O air_sdk.zip
+          wget -q --no-check-certificate "https://github.com/airsdk/Adobe-AIR-SDK/releases/download/v50.2.1.1/AIRSDK_MacOS.zip" -O air_sdk.zip
           unzip -q air_sdk.zip -d air_sdk_folder
+          chmod +x air_sdk_folder/bin/adt
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем твои тяжелые SWF файлы из релизов твоего же репозитория
-      - name: Fetch SWF from GitHub Releases
+      # Шаг 2: Скачиваем SWF-файлы с обработкой редиректов raw/objects github
+      - name: Fetch SWF Assets
         run: |
-          # Скачиваем все файлы по прямым ссылкам из твоего релиза v1.0
-          curl -L "https://github.com" -o Henry.swf
-          curl -L "https://github.com" -o HenryFtC.swf
-          curl -L "https://github.com" -o HenryCtM.swf
-          curl -L "https://github.com" -o HenryCtM2.swf
+          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
           
-          # Проверяем, что все куски успешно скачались в корень
-          ls -la *.swf
+          # Флаги -sSL гарантируют переход по редиректам raw.githubusercontent.com
+          curl -sSL --fail "$BASE_URL/Henry.swf" -o Henry.swf
+          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o HenryFtC.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
+          
+          # Проверяем, что файлы действительно скачались и имеют вес больше 0
+          ls -lh *.swf
 
-      # Шаг 3: Пакуем всё в .ipa
-      - name: Packaging iOS App
+      # Шаг 3: Упаковка приложения в .ipa
+      - name: Package iOS App
         run: |
           ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
-            Henry.swf \
-            HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json 2>/dev/null || ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter HenryStickmin.ipa HenryStickmin-app.xml Henry.swf
+            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
 
-      - name: Distribute Artifact
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: HenryStickmin-unsigned-ipa
           path: HenryStickmin.ipa
+          if-no-files-found: error
