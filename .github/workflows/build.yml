@@ -51,63 +51,31 @@ jobs:
       # Крок 4: Генерація парного сертифіката та сумісного profile.mobileprovision
       - name: Generate Matched Cert and Provisioning Profile
         run: |
-          # 1. Генеруємо приватний ключ і самопідписаний X.509 сертифікат
           openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
             -keyout cert.key -out cert.crt \
             -subj "/CN=iPhone Developer: Dummy/OU=DEV/O=Dummy/C=US"
 
-          # 2. Пакуємо в PFX для ADT
           openssl pkcs12 -export -out dummy.pfx -inkey cert.key -in cert.crt -passout pass:certpassword
 
-          # 3. Конвертуємо сертификат в DER для вставки в Plist
           CERT_DER=$(openssl x509 -in cert.crt -outform DER | base64 | tr -d '\n')
 
-          # 4. Формуємо plist з тим же сертифікатом
-          cat << EOF > profile.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>AppIDName</key>
-	<string>HenryStickmin</string>
-	<key>ApplicationIdentifierPrefix</key>
-	<array>
-		<string>1234567890</string>
-	</array>
-	<key>CreationDate</key>
-	<date>2026-01-01T00:00:00Z</date>
-	<key>DeveloperCertificates</key>
-	<array>
-		<data>${CERT_DER}</data>
-	</array>
-	<key>Entitlements</key>
-	<dict>
-		<key>application-identifier</key>
-		<string>1234567890.com.henry.stickmin</string>
-		<key>get-task-allow</key>
-		<true/>
-	</dict>
-	<key>ExpirationDate</key>
-	<date>2030-01-01T00:00:00Z</date>
-	<key>Name</key>
-	<string>Dummy Profile</string>
-	<key>ProvisionedDevices</key>
-	<array/>
-	<key>TeamIdentifier</key>
-	<array>
-		<string>1234567890</string>
-	</array>
-	<key>TimeToLive</key>
-	<integer>3650</integer>
-	<key>UUID</key>
-	<string>12345678-1234-1234-1234-123456789012</string>
-	<key>Version</key>
-	<integer>1</integer>
-</dict>
-</plist>
-EOF
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > profile.plist
+          echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> profile.plist
+          echo '<plist version="1.0"><dict>' >> profile.plist
+          echo '<key>AppIDName</key><string>HenryStickmin</string>' >> profile.plist
+          echo '<key>ApplicationIdentifierPrefix</key><array><string>1234567890</string></array>' >> profile.plist
+          echo '<key>CreationDate</key><date>2026-01-01T00:00:00Z</date>' >> profile.plist
+          echo '<key>DeveloperCertificates</key><array><data>'"$CERT_DER"'</data></array>' >> profile.plist
+          echo '<key>Entitlements</key><dict><key>application-identifier</key><string>1234567890.com.henry.stickmin</string><key>get-task-allow</key><true/></dict>' >> profile.plist
+          echo '<key>ExpirationDate</key><date>2030-01-01T00:00:00Z</date>' >> profile.plist
+          echo '<key>Name</key><string>Dummy Profile</string>' >> profile.plist
+          echo '<key>ProvisionedDevices</key><array/>' >> profile.plist
+          echo '<key>TeamIdentifier</key><array><string>1234567890</string></array>' >> profile.plist
+          echo '<key>TimeToLive</key><integer>3650</integer>' >> profile.plist
+          echo '<key>UUID</key><string>12345678-1234-1234-1234-123456789012</string>' >> profile.plist
+          echo '<key>Version</key><integer>1</integer>' >> profile.plist
+          echo '</dict></plist>' >> profile.plist
 
-          # 5. Підписуємо Plist в повноцінний ASN.1 CMS (mobileprovision)
           openssl smime -sign -in profile.plist -out profile.mobileprovision -signer cert.crt -inkey cert.key -outform DER
           
           ls -lh profile.mobileprovision dummy.pfx
