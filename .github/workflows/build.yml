@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Распаковка AIR SDK
+      # Шаг 1: Ра распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -48,29 +48,24 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Выкачиваем оригинальный provisioning profile из AltStore и генерируем PFX
+      # Шаг 4: Выкачиваем оригинальный profile.mobileprovision
       - name: Fetch Valid Provisioning Profile
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
           
-          # Скачиваем официальный собранный AltStore.ipa и вытаскиваем из него валидный embedded.mobileprovision
-          curl -sSL -o altstore.ipa "https://github.com/altstoreio/AltStore/releases/download/v1.7.1/AltStore.ipa" || \
-          curl -sSL -o altstore.ipa "https://github.com/altstoreio/AltStore/releases/download/v1.6.3/AltStore.ipa"
-          
-          unzip -q altstore.ipa "Payload/*.app/embedded.mobileprovision" -d temp_prov
-          cp temp_prov/Payload/*.app/embedded.mobileprovision profile.mobileprovision
-          rm -rf temp_prov altstore.ipa
+          # Скачиваем оригинальный файл embedded.mobileprovision напрямую
+          curl -sSL -L "https://raw.githubusercontent.com/opa333/TrollStore/main/Base/_embedded.mobileprovision" -o profile.mobileprovision
           
           ls -lh profile.mobileprovision
 
-      # Шаг 5: Сборка ipa-ad-hoc с оригинальным Apple-профилем
-      - name: Package iOS App (Ad-Hoc)
+      # Шаг 5: Сборка 64-битного IPA без проверки сертификата соответствия
+      - name: Package iOS App (64-bit Interpreter)
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
           adt -package \
-            -target ipa-ad-hoc \
+            -target ipa-test-interpreter \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
