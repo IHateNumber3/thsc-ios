@@ -16,27 +16,24 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый adt.jar из Maven и подготавливаем дескриптор
-      - name: Setup Standalone ADT Compiler
+      # Шаг 1: Качаем и распаковываем рабочий Apache Flex SDK
+      - name: Setup Flex SDK
         run: |
-          mkdir -p air_sdk_folder/lib
+          mkdir -p air_sdk_folder
+          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o flex_sdk.zip
+          unzip -q flex_sdk.zip -d air_sdk_folder
           
-          # Скачиваем рабочий adt.jar напрямую из реестра Maven
-          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar
+          # Находим папки bin и lib
+          FLEX_DIR=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "apache-flex-sdk*" -type d | head -n 1)
+          if [ -z "$FLEX_DIR" ]; then
+            FLEX_DIR="$GITHUB_WORKSPACE/air_sdk_folder"
+          fi
           
-          # Создаем минимальный air-sdk-description.xml, чтобы adt не ругался на отсутствие SDK
-          cat << 'EOF' > air_sdk_folder/air-sdk-description.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <sdk>
-              <name>AIR SDK</name>
-              <version>32.0.0.116</version>
-              <build>116</build>
-          </sdk>
-          EOF
-          
-          echo "ADT_JAR_PATH=$GITHUB_WORKSPACE/air_sdk_folder/lib/adt.jar" >> $GITHUB_ENV
+          chmod -R +x "$FLEX_DIR/bin"
+          echo "$FLEX_DIR/bin" >> $GITHUB_PATH
+          echo "FLEX_HOME=$FLEX_DIR" >> $GITHUB_ENV
 
-      # Шаг 2: Скачиваем SWF ассеты из релиза Files
+      # Шаг 2: Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -48,10 +45,10 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка iOS приложения напрямую через java -jar
+      # Шаг 3: Запускаем adt из состава Flex SDK
       - name: Package iOS App
         run: |
-          java -jar "$ADT_JAR_PATH" -package -target ipa-test-interpreter \
+          "$FLEX_HOME/bin/adt" -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
