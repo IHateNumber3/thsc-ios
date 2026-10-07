@@ -16,30 +16,13 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый автономный AIR SDK напрямую с GitHub Releases
-      - name: Download Harman AIR SDK
-        run: |
-          mkdir -p air_sdk
-          
-          # Забираем проверенный сборник AIR SDK
-          curl -sSL -L "https://github.com/airframework/air-sdk-releases/releases/download/v50.2.3.1/AIRSDK_Compiler.zip" -o air_sdk.zip
-          
-          unzip -q air_sdk.zip -d air_sdk
-          
-          # Ищем adt и заносим в PATH
-          ADT_PATH=$(find "$GITHUB_WORKSPACE/air_sdk" -name "adt" -type f | head -n 1)
-          
-          if [ -n "$ADT_PATH" ]; then
-            ADT_DIR=$(dirname "$ADT_PATH")
-            chmod -R +x "$ADT_DIR"
-            echo "$ADT_DIR" >> $GITHUB_PATH
-            echo "ADT successfully found at: $ADT_PATH"
-          else
-            echo "ADT not found in extracted archive"
-            exit 1
-          fi
+      # Устанавливаем официальный AIR SDK напрямую через готовую Action
+      - name: Setup AIR SDK
+        uses: eskimoblood/setup-air-action@v1
+        with:
+          air-version: '33.1.1.743'
 
-      # Шаг 2: Скачиваем SWF ассеты
+      # Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -51,7 +34,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка iOS приложения в .ipa
+      # Упаковка iOS приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
@@ -59,7 +42,7 @@ jobs:
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
 
-      # Шаг 4: Сохраняем готовую IPA в артефакты
+      # Сохраняем готовую IPA в артефакты
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
