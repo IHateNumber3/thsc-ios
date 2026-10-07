@@ -16,27 +16,33 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIRSDKManager и скачивание AIR SDK в тихом режиме
-      - name: Setup Harman AIR SDK via airsdkmanager
+      # Шаг 1: Скачиваем и распаковываем AIRSDKManager .pkg напрямую без зависаний
+      - name: Setup Harman AIR SDK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Скачиваем .pkg из последнего релиза
+          # Скачиваем .pkg пакет из релизов airsdkmanager
           gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          # 2. Устанавливаем .pkg пакетом
-          sudo installer -pkg AIRSDKManager_*.pkg -target /
+          # Распаковываем содержимое пакета без запуска GUI
+          mkdir -p air_sdk_folder
+          pkgutil --expand-full AIRSDKManager_*.pkg expanded_pkg
           
-          AIRSDK_MGR="/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager"
+          # Находим внутренний палоад/папку с AIR SDK и копируем bin/lib
+          SDK_LOCATION=$(find expanded_pkg -name "adt" -type f | head -n 1 | xargs dirname | xargs dirname)
           
-          # 3. Скачиваем AIR SDK без интерактивного зависания (--license-agree и y |)
-          yes | "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree || true
+          if [ -n "$SDK_LOCATION" ]; then
+            cp -R "$SDK_LOCATION/"* ./air_sdk_folder/
+          else
+            echo "SDK files extracting from package..."
+            sudo installer -pkg AIRSDKManager_*.pkg -target /
+            cp -R /Applications/AIRSDKManager.app/Contents/Resources/* ./air_sdk_folder/ 2>/dev/null || true
+          fi
           
-          # 4. Проверяем наличие bin/adt
           chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем SWF ассеты из вашего релиза
+      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
