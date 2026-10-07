@@ -16,28 +16,41 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и устанавливаем официальный .pkg пакетом в систему macOS
-      - name: Install Harman AIR SDK via PKG
+      # Шаг 1: Скачиваем и устанавливаем AIR SDK Manager, затем ставим сам SDK
+      - name: Install Harman AIR SDK via Manager CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Скачиваем .pkg файл из релизов airsdkmanager
+          # 1. Скачиваем .pkg файл
           gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
           PKG_FILE=$(ls *.pkg | head -n 1)
-          echo "Found package: $PKG_FILE"
+          echo "Installing: $PKG_FILE"
           
-          # 2. Устанавливаем тихим образом в систему
+          # 2. Устанавливаем PKG в систему
           sudo installer -pkg "$PKG_FILE" -target /
           
-          # 3. Ищем, куда установился бинарник adt
-          ADT_BIN=$(find /Library /usr/local /Applications -name "adt" -type f 2>/dev/null | head -n 1)
+          # 3. Ищем бинарник airsdkmanager внутри установленного /Applications
+          CLI_BIN=$(find "/Applications/AIR SDK Manager.app" -name "airsdkmanager" -type f 2>/dev/null | head -n 1)
           
+          if [ -z "$CLI_BIN" ]; then
+            CLI_BIN=$(find /Applications -name "airsdkmanager" -type f 2>/dev/null | head -n 1)
+          fi
+          
+          echo "Found airsdkmanager CLI at: $CLI_BIN"
+          
+          # 4. Скачиваем AIR SDK в папку air_sdk_folder
+          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
+          "$CLI_BIN" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
+          
+          # 5. Ищем adt и добавляем в PATH
+          ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
           if [ -n "$ADT_BIN" ]; then
-            echo "ADT found at: $ADT_BIN"
+            chmod -R +x "$(dirname "$ADT_BIN")"
             echo "$(dirname "$ADT_BIN")" >> $GITHUB_PATH
+            echo "ADT successfully prepared at: $ADT_BIN"
           else
-            echo "ADT not found after pkg install"
+            echo "Failed to find adt after installation"
             exit 1
           fi
 
