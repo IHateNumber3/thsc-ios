@@ -16,30 +16,29 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Setup Harman SDK Clean
-        run: |
-          # Склеюємо посилання на пряме перевірене дзеркало оригінального SDK
-          SDK_B="https://archive.org"
-          SDK_P="/download/adobe-air-sdk-linux/adobe-air-sdk-linux.zip"
-          curl -L "${SDK_B}${SDK_P}" -o air_sdk.zip
-          
-          unzip -q air_sdk.zip -d air_sdk_folder
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+      # Используем официальный проверенный экшен для установки AIR SDK
+      - name: Setup Harman AIR SDK
+        uses: airsdk/setup-airsdk@v1
+        with:
+          air-version: '50.1.1.2' # Стабильная версия, которая развернется сама
 
-      - name: Extract Flash Assets
+      # Качаем исходники игры встроенным модулем GitHub, который не режет ссылки
+      - name: Download Henry Stickmin Assets
+        uses: suisei-cn/actions-download-file@v1.4.0
+        with:
+          url: 'https://archive.org'
+          target: './'
+          filename: 'game_source.zip'
+
+      - name: Unpack and Prepare
         run: |
-          # Склеюємо робоче посилання на портативний архів Henry Stickmin
-          G_BASE="https://archive.org"
-          G_PATH="/download/the-henry-stickmin-collection/The.Henry.Stickmin.Collection.v1.2.Portable.zip"
-          curl -L "${G_BASE}${G_PATH}" -o game_source_pc.zip
-          
-          unzip -q game_source_pc.zip -d game_files
+          unzip -q game_source.zip -d game_files
           cp game_files/HenryStickminCollection.swf .
           cp -r game_files/Adobe\ AIR/ . || true
 
       - name: Create Unsigned IPA
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             HenryStickminCollection.swf
