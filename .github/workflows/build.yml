@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Распаковка AIR SDK
+      # Шаг 1: Ра распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -48,13 +48,13 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация PFX и фейкового бинарного mobileprovision
+      # Шаг 4: Генерация PFX и создание фейкового бинарного mobileprovision через OpenSSL
       - name: Generate Dummy Certificate and Provisioning Profile
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
           
-          # Создаем минимальный валидный ASN.1 / plist файл для mobileprovision
-          cat << 'EOF' > profile.mobileprovision
+          # Создаем базовый plist
+          cat << 'EOF' > profile.plist
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -94,15 +94,20 @@ jobs:
 </plist>
 EOF
 
-      # Шаг 5: Упаковка 64-битного iOS приложения (armv8)
-      - name: Package iOS App (64-bit ARM)
+          # Генерируем самоподписанный ключик для запаковки Plist в формат PKCS7 DER
+          openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout dummy_prof.key -out dummy_prof.crt -subj "/CN=DummyProf"
+          openssl smime -sign -in profile.plist -out profile.mobileprovision -signer dummy_prof.crt -inkey dummy_prof.key -outform DER
+          
+          ls -lh profile.mobileprovision
+
+      # Шаг 5: Упаковка 64-битного iOS приложения (iPhoneOS target)
+      - name: Package iOS App (Real Device Target)
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
           adt -package \
             -target ipa-test-interpreter \
-            -arch armv8 \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
