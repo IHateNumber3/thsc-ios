@@ -16,19 +16,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый архив AIR SDK напрямую без менеджеров
-      - name: Setup Harman AIR SDK Direct
+      # Шаг 1: Установка AIRSDKManager и скачивание AIR SDK в тихом режиме
+      - name: Setup Harman AIR SDK via airsdkmanager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p air_sdk_folder
-          # Скачиваем официальный zip-архив AIR SDK под macOS
-          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.4.0/AIRSDK_MacOS.zip" -o air_sdk.zip || \
-          curl -sSL "https://airsdk.harman.com/api/v1/downloads/sdk/50.2.1.1/mac" -o air_sdk.zip
+          # 1. Скачиваем .pkg из последнего релиза
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          unzip -q air_sdk.zip -d air_sdk_folder
-          chmod -R +x air_sdk_folder/bin/
+          # 2. Устанавливаем .pkg пакетом
+          sudo installer -pkg AIRSDKManager_*.pkg -target /
+          
+          AIRSDK_MGR="/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager"
+          
+          # 3. Скачиваем AIR SDK без интерактивного зависания (--license-agree и y |)
+          yes | "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree || true
+          
+          # 4. Проверяем наличие bin/adt
+          chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем SWF ассеты из твоего релиза
+      # Шаг 2: Скачиваем SWF ассеты из вашего релиза
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
