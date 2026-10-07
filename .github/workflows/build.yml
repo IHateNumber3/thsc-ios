@@ -16,28 +16,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и устанавливаем AIRSDKManager через installer
-      - name: Setup Harman AIR SDK via airsdkmanager
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Шаг 1: Скачиваем готовый архив AIR SDK напрямую без менеджеров
+      - name: Setup Harman AIR SDK Direct
         run: |
-          # Скачиваем .pkg пакет из последнего релиза
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
+          mkdir -p air_sdk_folder
+          # Скачиваем официальный zip-архив AIR SDK под macOS
+          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.4.0/AIRSDK_MacOS.zip" -o air_sdk.zip || \
+          curl -sSL "https://airsdk.harman.com/api/v1/downloads/sdk/50.2.1.1/mac" -o air_sdk.zip
           
-          # Устанавливаем .pkg в систему
-          sudo installer -pkg AIRSDKManager_*.pkg -target /
-          
-          # Находим установленный airsdkmanager CLI
-          AIRSDK_MGR=$(which airsdkmanager || echo "/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager")
-          
-          # Устанавливаем нужную версию AIR SDK
-          sudo "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree || "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree
-          
-          # Предоставляем права исполняемым файлам
-          chmod -R +x ./air_sdk_folder/bin/
+          unzip -q air_sdk.zip -d air_sdk_folder
+          chmod -R +x air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем SWF ассеты из вашего релиза
+      # Шаг 2: Скачиваем SWF ассеты из твоего релиза
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -52,7 +43,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          adt -package -target ipa-test-interpreter \
+          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
