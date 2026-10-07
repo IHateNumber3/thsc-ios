@@ -16,30 +16,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем APM напрямую с GitHub Releases и устанавливаем AIR SDK
-      - name: Setup Harman AIR SDK via Direct APM
+      # Шаг 1: Установка AIRSDKManager из .pkg и скачивание AIR SDK
+      - name: Setup Harman AIR SDK via airsdkmanager
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Выкачиваем последний релиз apm CLI через gh
-          gh release download --repo airsdk/apm --pattern "*macos*.zip" --clobber || \
-          gh release download --repo airsdk/apm --pattern "*.zip" --clobber
+          # 1. Скачиваем .pkg пакет
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          mkdir -p apm_bin
-          unzip -q *.zip -d apm_bin
+          # 2. Устанавливаем в систему
+          sudo installer -pkg AIRSDKManager_*.pkg -target /
           
-          # Находим исполняемый файл apm
-          APM_EXEC=$(find apm_bin -name "apm" -type f | head -n 1)
-          chmod +x "$APM_EXEC"
+          # 3. Путь к бинарнику airsdkmanager внутри macOS приложения
+          AIRSDK_MGR="/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager"
           
-          # 2. Инициализируем и выкачиваем SDK
-          "$APM_EXEC" project init --force || true
-          "$APM_EXEC" sdk install 51.1.1.5
+          # 4. Скачиваем AIR SDK в рабочую папку
+          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
+          echo "y" | "$AIRSDK_MGR" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
           
-          # 3. Добавляем путь к SDK в PATH
-          AIR_SDK_DIR=$("$APM_EXEC" sdk path)
-          chmod -R +x "$AIR_SDK_DIR/bin/"
-          echo "$AIR_SDK_DIR/bin" >> $GITHUB_PATH
+          # 5. Проверяем наличие bin/adt и добавляем в PATH
+          chmod -R +x "$GITHUB_WORKSPACE/air_sdk_folder/bin/"
+          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
