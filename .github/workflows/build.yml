@@ -16,20 +16,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Достаем AIR SDK из .pkg напрямую через pkgutil без GUI и висяков
-      - name: Extract AIR SDK from PKG
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Шаг 1: Скачиваем оригинальный AIR SDK напрямую из Maven
+      - name: Download AIR SDK Archive
         run: |
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
-          PKG_FILE=$(ls *.pkg | head -n 1)
-          echo "Extracting package: $PKG_FILE"
+          mkdir -p air_sdk_folder
           
-          # Распаковываем содержимое pkg в папку pkg_extracted
-          pkgutil --expand-full "$PKG_FILE" pkg_extracted
+          # Скачиваем официальный zip-архив AIR SDK из репозитория Apache / Maven Central
+          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/air-compiler-sdk/32.0.0.116/air-compiler-sdk-32.0.0.116.zip" -o air_sdk.zip || \
+          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o air_sdk.zip
           
-          # Ищем утилиту adt
-          ADT_BIN=$(find pkg_extracted -name "adt" -type f | head -n 1)
+          unzip -q air_sdk.zip -d air_sdk_folder
+          
+          # Находим adt и добавляем в PATH
+          ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
           
           if [ -n "$ADT_BIN" ]; then
             ADT_DIR=$(dirname "$ADT_BIN")
@@ -37,7 +36,7 @@ jobs:
             echo "$ADT_DIR" >> $GITHUB_PATH
             echo "ADT ready at: $ADT_BIN"
           else
-            echo "ADT not found in pkg payload"
+            echo "Failed to find adt in extracted zip"
             exit 1
           fi
 
@@ -53,7 +52,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка iOS приложения в .ipa
+      # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
