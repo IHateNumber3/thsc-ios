@@ -16,26 +16,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIRSDKManager из .pkg и скачивание AIR SDK
-      - name: Setup Harman AIR SDK via airsdkmanager
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Шаг 1: Скачиваем готовый AIR SDK напрямую через cURL
+      - name: Download Harman AIR SDK Direct
         run: |
-          # 1. Скачиваем .pkg пакет
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
+          mkdir -p air_sdk_folder
           
-          # 2. Устанавливаем в систему
-          sudo installer -pkg AIRSDKManager_*.pkg -target /
+          # Скачиваем официальный архив AIR SDK под macOS напрямую
+          curl -sSL "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/mac" -o air_sdk.zip
           
-          # 3. Путь к бинарнику airsdkmanager внутри macOS приложения
-          AIRSDK_MGR="/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager"
+          # Распаковываем
+          unzip -q air_sdk.zip -d air_sdk_folder
           
-          # 4. Скачиваем AIR SDK в рабочую папку
-          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
-          echo "y" | "$AIRSDK_MGR" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
-          
-          # 5. Проверяем наличие bin/adt и добавляем в PATH
-          chmod -R +x "$GITHUB_WORKSPACE/air_sdk_folder/bin/"
+          # Проверяем исполняемые права
+          chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
@@ -53,7 +46,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          adt -package -target ipa-test-interpreter \
+          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
