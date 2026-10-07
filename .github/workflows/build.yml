@@ -16,27 +16,25 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем оригинальный AIR SDK напрямую из Maven
-      - name: Download AIR SDK Archive
+      # Шаг 1: Разворачиваем рабочий Apache Flex SDK
+      - name: Download & Setup Apache Flex SDK
         run: |
           mkdir -p air_sdk_folder
           
-          # Скачиваем официальный zip-архив AIR SDK из репозитория Apache / Maven Central
-          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/air-compiler-sdk/32.0.0.116/air-compiler-sdk-32.0.0.116.zip" -o air_sdk.zip || \
-          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o air_sdk.zip
+          # Скачиваем твой проверенный рабочий ZIP
+          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o flex_sdk.zip
           
-          unzip -q air_sdk.zip -d air_sdk_folder
+          unzip -q flex_sdk.zip -d air_sdk_folder
           
-          # Находим adt и добавляем в PATH
-          ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
+          # Находим папку bin внутри распакованного SDK
+          BIN_DIR=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -type d -name "bin" | head -n 1)
           
-          if [ -n "$ADT_BIN" ]; then
-            ADT_DIR=$(dirname "$ADT_BIN")
-            chmod -R +x "$ADT_DIR"
-            echo "$ADT_DIR" >> $GITHUB_PATH
-            echo "ADT ready at: $ADT_BIN"
+          if [ -n "$BIN_DIR" ]; then
+            chmod -R +x "$BIN_DIR"
+            echo "$BIN_DIR" >> $GITHUB_PATH
+            echo "Flex SDK bin added to PATH: $BIN_DIR"
           else
-            echo "Failed to find adt in extracted zip"
+            echo "bin directory not found"
             exit 1
           fi
 
@@ -52,7 +50,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка приложения в .ipa
+      # Шаг 3: Упаковка iOS приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
