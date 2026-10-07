@@ -16,11 +16,23 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Разворачиваем AIR SDK через готовый рабочий экшен
-      - name: Setup AIR SDK
-        uses: krispprog/setup-air-sdk@v1
-        with:
-          air-sdk-version: '51.1.1.5'
+      # Шаг 1: Скачиваем готовый компилятор adt.jar из Maven
+      - name: Download ADT Compiler
+        run: |
+          mkdir -p air_sdk_folder/lib
+          
+          # Скачиваем оригинальный ADT из публичного репозитория Maven Central / Apache Flex
+          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar || \
+          curl -sSL "https://jcenter.bintray.com/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar
+
+          # Создаем обертку для вызова adt
+          cat << 'EOF' > air_sdk_folder/bin/adt
+          #!/usr/bin/env bash
+          java -jar "$GITHUB_WORKSPACE/air_sdk_folder/lib/adt.jar" "$@"
+          EOF
+
+          chmod +x air_sdk_folder/bin/adt
+          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
