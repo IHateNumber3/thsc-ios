@@ -16,35 +16,13 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Извлекаем AIR SDK напрямую из .pkg через pkgutil & cpio
-      - name: Extract AIR SDK from PKG
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 1. Скачиваем .pkg из релизов airsdkmanager
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
-          
-          # 2. Распаковываем структуру .pkg без запуска инсталлятора
-          pkgutil --expand-full AIRSDKManager_*.pkg expanded_pkg
-          
-          # 3. Находим внутреннюю папку c AIR SDK и копируем её
-          mkdir -p air_sdk_folder
-          
-          # Ищем директорию, где лежит бинарник adt
-          ADT_PATH=$(find expanded_pkg -name "adt" -type f | head -n 1)
-          
-          if [ -n "$ADT_PATH" ]; then
-            SDK_DIR=$(dirname $(dirname "$ADT_PATH"))
-            cp -R "$SDK_DIR/"* ./air_sdk_folder/
-          else
-            echo "Failed to locate adt in extracted package"
-            exit 1
-          fi
-          
-          chmod -R +x ./air_sdk_folder/bin/
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+      # Шаг 1: Разворачиваем Harman AIR SDK через специальный CI/CD экшен
+      - name: Setup Harman AIR SDK
+        uses: purda/setup-airsdk@v1.2.0
+        with:
+          version: '51.1.1.5'
 
-      # Шаг 2: Скачиваем SWF ассеты из релиза Files
+      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -59,7 +37,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
