@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Крок 1: Встановлення AIR SDK
+      # Шаг 1: Установка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Крок 2: Перевірка ADT
+      # Шаг 2: Проверка ADT
       - name: Verify ADT
         run: |
           adt -version
 
-      # Крок 3: Скачування SWF файлів
+      # Шаг 3: Скачивание SWF файлов
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -46,32 +46,33 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
 
-      # Крок 4: Збірка сирого .app бандлу через ADT (без підписів!)
-      - name: Build App Bundle
+      # Шаг 4: Генерация PFX и сборка бандла
+      - name: Package Base IPA
         run: |
-          OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
           
-          # Генеруємо формальний pfx для сумісності з ADT bundle
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
 
           adt -package \
-            -target bundle \
+            -target ipa-test-interpreter-simulator \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
-            HenryStickmin.app \
+            HenryStickmin.ipa \
             HenryStickmin-app.xml \
-            -platformsdk "$OS_SDK_PATH" \
+            -platformsdk "$SIM_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Крок 5: Формування Payload, Ad-Hoc підпис через codesign та архівування ditto
-      - name: Package IPA via Ad-hoc Codesign
+      # Шаг 5: Распаковка, ad-hoc подпись через codesign и запаковка ditto (как в Source Engine)
+      - name: Patch and Build Final IPA
         run: |
+          unzip -q HenryStickmin.ipa -d temp_extract
+          
           rm -rf Payload HenryStickmin.ipa
           mkdir -p Payload
-          mv HenryStickmin.app Payload/
+          mv temp_extract/Payload/HenryStickmin.app Payload/
+          rm -rf temp_extract
 
-          # Ad-hoc підпис усіх фреймворків, дрейфів та самого бінарника (як у скрипті Source Engine)
           echo "=== Ad-hoc codesigning ==="
           find Payload/HenryStickmin.app -name "*.dylib" -exec codesign --force --sign - --timestamp=none {} \; || true
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
@@ -84,7 +85,7 @@ jobs:
           
           ls -lh HenryStickmin.ipa
 
-      # Крок 6: Вивантаження IPA в артефакти
+      # Шаг 6: Выгрузка IPA
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
