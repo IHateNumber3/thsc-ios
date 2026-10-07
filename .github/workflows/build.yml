@@ -16,52 +16,28 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIR SDK Manager и скачивание AIR SDK
-      - name: Install Harman AIR SDK via Manager CLI
+      # Шаг 1: Достаем AIR SDK из .pkg напрямую через pkgutil без GUI и висяков
+      - name: Extract AIR SDK from PKG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Скачиваем .pkg файл
           gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
-          
           PKG_FILE=$(ls *.pkg | head -n 1)
-          echo "Installing package: $PKG_FILE"
+          echo "Extracting package: $PKG_FILE"
           
-          # 2. Устанавливаем PKG в систему
-          sudo installer -pkg "$PKG_FILE" -target /
+          # Распаковываем содержимое pkg в папку pkg_extracted
+          pkgutil --expand-full "$PKG_FILE" pkg_extracted
           
-          # 3. Точный поиск исполняемого бинарника
-          CLI_BIN=""
-          if [ -f "/usr/local/bin/airsdkmanager" ]; then
-            CLI_BIN="/usr/local/bin/airsdkmanager"
-          else
-            CLI_BIN=$(sudo find "/Applications" -type f -perm +111 -iname "*airsdkmanager*" 2>/dev/null | head -n 1)
-          fi
+          # Ищем утилиту adt
+          ADT_BIN=$(find pkg_extracted -name "adt" -type f | head -n 1)
           
-          if [ -z "$CLI_BIN" ]; then
-            # Поиск любого исполняемого файла внутри бандла приложения
-            CLI_BIN=$(sudo find "/Applications/AIR SDK Manager.app" -type f -perm +111 2>/dev/null | head -n 1)
-          fi
-          
-          echo "Found airsdkmanager CLI at: $CLI_BIN"
-          
-          if [ -z "$CLI_BIN" ]; then
-            echo "Failed to locate airsdkmanager executable."
-            exit 1
-          fi
-          
-          # 4. Скачиваем сам AIR SDK
-          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
-          "$CLI_BIN" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
-          
-          # 5. Ищем adt и добавляем его в PATH
-          ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
           if [ -n "$ADT_BIN" ]; then
-            chmod -R +x "$(dirname "$ADT_BIN")"
-            echo "$(dirname "$ADT_BIN")" >> $GITHUB_PATH
+            ADT_DIR=$(dirname "$ADT_BIN")
+            chmod -R +x "$ADT_DIR"
+            echo "$ADT_DIR" >> $GITHUB_PATH
             echo "ADT ready at: $ADT_BIN"
           else
-            echo "Failed to find adt after SDK installation"
+            echo "ADT not found in pkg payload"
             exit 1
           fi
 
@@ -77,7 +53,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка приложения в .ipa
+      # Шаг 3: Упаковка iOS приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
