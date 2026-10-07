@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Распаковка AIR SDK
+      # Крок 1: Розпакування AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Проверка наличия adt
+      # Крок 2: Перевірка adt
       - name: Verify ADT
         run: |
           adt -version
 
-      # Шаг 3: Скачивание SWF ассетов
+      # Крок 3: Завантаження SWF асетів
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -48,18 +48,71 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация PFX и скачивание настоящего .mobileprovision
-      - name: Generate Dummy Certificate and Fetch Valid Profile
+      # Крок 4: Генерація парного сертифіката та сумісного profile.mobileprovision
+      - name: Generate Matched Cert and Provisioning Profile
         run: |
-          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
-          
-          # Скачиваем валидный структурированный provisioning profile из открытого репозитория
-          curl -sSL -o profile.mobileprovision "https://raw.githubusercontent.com/ObviousAIO/Obvious/main/embedded.mobileprovision" || \
-          curl -sSL -o profile.mobileprovision "https://raw.githubusercontent.com/AltStoreIO/AltStore/main/AltStore/embedded.mobileprovision"
-          
-          ls -lh profile.mobileprovision
+          # 1. Генеруємо приватний ключ і самопідписаний X.509 сертифікат
+          openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout cert.key -out cert.crt \
+            -subj "/CN=iPhone Developer: Dummy/OU=DEV/O=Dummy/C=US"
 
-      # Шаг 5: Упаковка 64-битного iOS приложения (iphoneos target)
+          # 2. Пакуємо в PFX для ADT
+          openssl pkcs12 -export -out dummy.pfx -inkey cert.key -in cert.crt -passout pass:certpassword
+
+          # 3. Конвертуємо сертификат в DER для вставки в Plist
+          CERT_DER=$(openssl x509 -in cert.crt -outform DER | base64 | tr -d '\n')
+
+          # 4. Формуємо plist з тим же сертифікатом
+          cat << EOF > profile.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppIDName</key>
+	<string>HenryStickmin</string>
+	<key>ApplicationIdentifierPrefix</key>
+	<array>
+		<string>1234567890</string>
+	</array>
+	<key>CreationDate</key>
+	<date>2026-01-01T00:00:00Z</date>
+	<key>DeveloperCertificates</key>
+	<array>
+		<data>${CERT_DER}</data>
+	</array>
+	<key>Entitlements</key>
+	<dict>
+		<key>application-identifier</key>
+		<string>1234567890.com.henry.stickmin</string>
+		<key>get-task-allow</key>
+		<true/>
+	</dict>
+	<key>ExpirationDate</key>
+	<date>2030-01-01T00:00:00Z</date>
+	<key>Name</key>
+	<string>Dummy Profile</string>
+	<key>ProvisionedDevices</key>
+	<array/>
+	<key>TeamIdentifier</key>
+	<array>
+		<string>1234567890</string>
+	</array>
+	<key>TimeToLive</key>
+	<integer>3650</integer>
+	<key>UUID</key>
+	<string>12345678-1234-1234-1234-123456789012</string>
+	<key>Version</key>
+	<integer>1</integer>
+</dict>
+</plist>
+EOF
+
+          # 5. Підписуємо Plist в повноцінний ASN.1 CMS (mobileprovision)
+          openssl smime -sign -in profile.plist -out profile.mobileprovision -signer cert.crt -inkey cert.key -outform DER
+          
+          ls -lh profile.mobileprovision dummy.pfx
+
+      # Крок 5: Упаковка 64-бітного iOS застосунку (iphoneos target)
       - name: Package iOS App
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
@@ -76,7 +129,7 @@ jobs:
             -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Шаг 6: Выгрузка готового .ipa в артефакты
+      # Крок 6: Завантаження готового .ipa в артефакти
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
