@@ -16,22 +16,35 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый AIR SDK напрямую через cURL
-      - name: Download Harman AIR SDK Direct
+      # Шаг 1: Устанавливаем AIRSDKManager .pkg и скачиваем SDK через CLI
+      - name: Setup Harman AIR SDK via AIRSDKManager CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p air_sdk_folder
+          # 1. Скачиваем .pkg из официального репозитория
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          # Скачиваем официальный архив AIR SDK под macOS напрямую
-          curl -sSL "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/mac" -o air_sdk.zip
+          # 2. Устанавливаем .pkg в систему
+          sudo installer -pkg AIRSDKManager_*.pkg -target /
           
-          # Распаковываем
-          unzip -q air_sdk.zip -d air_sdk_folder
+          # 3. Ищем бинарник CLI утилиты airsdkmanager
+          MGR_PATH=$(which airsdkmanager || echo "/Applications/AIRSDKManager.app/Contents/Resources/bin/airsdkmanager")
+          if [ ! -f "$MGR_PATH" ]; then
+            MGR_PATH=$(find /Applications/AIRSDKManager.app -name "airsdkmanager" -type f | head -n 1)
+          fi
           
-          # Проверяем исполняемые права
-          chmod -R +x ./air_sdk_folder/bin/
+          echo "Found airsdkmanager at: $MGR_PATH"
+          
+          # 4. Скачиваем AIR SDK в папку air_sdk_folder
+          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
+          "$MGR_PATH" --install --version 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree || \
+          "$MGR_PATH" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
+          
+          # 5. Выставляем права на исполнение и добавляем в PATH
+          chmod -R +x "$GITHUB_WORKSPACE/air_sdk_folder/bin/"
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем SWF ассеты из релиза Files
+      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -46,7 +59,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
