@@ -16,33 +16,13 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и распаковываем AIRSDKManager .pkg напрямую без зависаний
+      # Шаг 1: Официальный экшен для установки Harman AIR SDK
       - name: Setup Harman AIR SDK
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Скачиваем .pkg пакет из релизов airsdkmanager
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
-          
-          # Распаковываем содержимое пакета без запуска GUI
-          mkdir -p air_sdk_folder
-          pkgutil --expand-full AIRSDKManager_*.pkg expanded_pkg
-          
-          # Находим внутренний палоад/папку с AIR SDK и копируем bin/lib
-          SDK_LOCATION=$(find expanded_pkg -name "adt" -type f | head -n 1 | xargs dirname | xargs dirname)
-          
-          if [ -n "$SDK_LOCATION" ]; then
-            cp -R "$SDK_LOCATION/"* ./air_sdk_folder/
-          else
-            echo "SDK files extracting from package..."
-            sudo installer -pkg AIRSDKManager_*.pkg -target /
-            cp -R /Applications/AIRSDKManager.app/Contents/Resources/* ./air_sdk_folder/ 2>/dev/null || true
-          fi
-          
-          chmod -R +x ./air_sdk_folder/bin/
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+        uses: airsdk/setup-airsdk@v1
+        with:
+          version: '51.1.1.5'
 
-      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
+      # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -57,7 +37,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
