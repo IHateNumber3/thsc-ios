@@ -16,14 +16,33 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIR SDK через официальный Homebrew tap от Harman
-      - name: Setup Harman AIR SDK via Homebrew
+      # Шаг 1: Извлекаем AIR SDK напрямую из .pkg через pkgutil & cpio
+      - name: Extract AIR SDK from PKG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          brew install airsdk/tap/airsdk
+          # 1. Скачиваем .pkg из релизов airsdkmanager
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          # Проверяем путь к установленным бинарникам
-          AIR_PATH=$(brew --prefix airsdk)/bin
-          echo "$AIR_PATH" >> $GITHUB_PATH
+          # 2. Распаковываем структуру .pkg без запуска инсталлятора
+          pkgutil --expand-full AIRSDKManager_*.pkg expanded_pkg
+          
+          # 3. Находим внутреннюю папку c AIR SDK и копируем её
+          mkdir -p air_sdk_folder
+          
+          # Ищем директорию, где лежит бинарник adt
+          ADT_PATH=$(find expanded_pkg -name "adt" -type f | head -n 1)
+          
+          if [ -n "$ADT_PATH" ]; then
+            SDK_DIR=$(dirname $(dirname "$ADT_PATH"))
+            cp -R "$SDK_DIR/"* ./air_sdk_folder/
+          else
+            echo "Failed to locate adt in extracted package"
+            exit 1
+          fi
+          
+          chmod -R +x ./air_sdk_folder/bin/
+          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
@@ -40,7 +59,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          adt -package -target ipa-test-interpreter \
+          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
