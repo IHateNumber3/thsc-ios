@@ -31,7 +31,7 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Проверка наличия adt
+      # Шаг 2: Проверка ADT
       - name: Verify ADT
         run: |
           adt -version
@@ -45,36 +45,50 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o HenryFtC.swf
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
-          
-          ls -lh *.swf
 
-      # Шаг 4: Генерация dummy PFX и скачивание профиля
-      - name: Setup Certificates
+      # Шаг 4: Сборка пакета без подписей через simulator-target
+      - name: Package Base IPA
         run: |
-          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
-          curl -sSL -L "https://raw.githubusercontent.com/opa333/TrollStore/main/Base/_embedded.mobileprovision" -o profile.mobileprovision
-
-      # Шаг 5: Упаковка 64-битного IPA с правильным порядком Signing Options
-      - name: Package iOS App
-        run: |
-          OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          echo "iPhoneOS SDK path: $OS_SDK_PATH"
+          SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
           
           adt -package \
-            -target ipa-test-interpreter \
-            -storetype pkcs12 \
-            -keystore dummy.pfx \
-            -storepass certpassword \
-            -provisioning-profile profile.mobileprovision \
+            -target ipa-test-interpreter-simulator \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
-            -platformsdk "$OS_SDK_PATH" \
+            -platformsdk "$SIM_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Шаг 6: Выгрузка готового .ipa в артефакты
+      # Шаг 5: Подмена исполняемого бинарника на 64-битный ARM64 из AIR SDK
+      - name: Fix 64-bit Architecture for Real Devices
+        run: |
+          unzip -q HenryStickmin.ipa -d ipa_extract
+          
+          # Находим 64-битный заглушечный бинарник интерпретатора AIR SDK под iOS
+          AIR_RUNNER="$AIR_HOME/lib/aot/stub/CTAIRInterpreter"
+          if [ ! -f "$AIR_RUNNER" ]; then
+            AIR_RUNNER=$(find "$AIR_HOME" -name "CTAIRInterpreter" | head -n 1)
+          fi
+          
+          echo "Using AIR runner: $AIR_RUNNER"
+          
+          # Заменяем 32-битный бинарник внутри Payload на 64-битный
+          APP_DIR=$(ls -d ipa_extract/Payload/*.app)
+          APP_NAME=$(basename "$APP_DIR" .app)
+          
+          cp -f "$AIR_RUNNER" "$APP_DIR/$APP_NAME"
+          chmod +x "$APP_DIR/$APP_NAME"
+          
+          # Запаковываем готовый 64-битный IPA
+          cd ipa_extract
+          zip -q -r ../HenryStickmin-ARM64.ipa Payload
+          cd ..
+          
+          ls -lh HenryStickmin-ARM64.ipa
+
+      # Шаг 6: Выгрузка готового .ipa
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-unsigned-ipa
-          path: HenryStickmin.ipa
+          name: HenryStickmin-ARM64-ipa
+          path: HenryStickmin-ARM64.ipa
           if-no-files-found: error
