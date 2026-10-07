@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-unsigned-ipa:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
@@ -16,19 +16,30 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # Шаг 1: Устанавливаем AIR SDK через npm
-      - name: Install AIR SDK via npm
+      # Шаг 1: Скачиваем готовый архив AIR SDK под macOS напрямую из Github Релизов
+      - name: Setup Harman AIR SDK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm install -g airsdk
-          # Проверяем, где лежит adt
-          which adt || true
+          mkdir -p air_sdk_folder
+          
+          # Скачиваем архив AIR SDK для macOS с GitHub релизов Harman
+          gh release download --repo airsdk/apm --pattern "*mac*.zip" --clobber || \
+          gh release download --repo airsdk/apm --pattern "*.zip" --clobber
+          
+          # Распаковываем
+          unzip -q *.zip -d air_sdk_folder
+          
+          # Находим папки с SDK/adt и прописываем права
+          chmod -R +x ./air_sdk_folder/
+          
+          # Добавляем пути к adt в PATH
+          ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
+          if [ -n "$ADT_BIN" ]; then
+            echo "$(dirname "$ADT_BIN")" >> $GITHUB_PATH
+          fi
 
-      # Шаг 2: Скачиваем SWF ассеты
+      # Шаг 2: Скачиваем SWF ассеты из вашего релиза
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -40,10 +51,10 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Упаковка приложения в .ipa
+      # Шаг 3: Упаковка iOS приложения в .ipa
       - name: Package iOS App
         run: |
-          npx adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
