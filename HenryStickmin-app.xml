@@ -3,16 +3,16 @@
     <id>com.slavuta.henrystickmin</id>
     <versionNumber>1.0.0</versionNumber>
     <filename>HenryStickmin</filename>
-    <name>Henry Stickmin Collection</name>
+    <name>Henry Stickmin</name>
     <initialWindow>
-        <content>HenryStickminCollection.swf</content>
+        <content>HenryStickmin.swf</content>
         <visible>true</visible>
         <fullScreen>true</fullScreen>
         <aspectRatio>landscape</aspectRatio>
         <renderMode>direct</renderMode>
     </initialWindow>
     <touchCapabilities>
-        <touchMode>gesture</touchMode> <!-- Включает долгий тап как ПКМ -->
+        <touchMode>gesture</touchMode>
     </touchCapabilities>
     <iPhone>
         <InfoAdditions><![CDATA[
