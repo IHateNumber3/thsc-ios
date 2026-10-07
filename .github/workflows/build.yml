@@ -16,26 +16,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и распаковываем Flex SDK
-      - name: Download & Setup Apache Flex SDK
+      # Шаг 1: Скачиваем готовый adt.jar из Maven и подготавливаем дескриптор
+      - name: Setup Standalone ADT Compiler
         run: |
-          mkdir -p air_sdk_folder
+          mkdir -p air_sdk_folder/lib
           
-          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o flex_sdk.zip
-          unzip -q flex_sdk.zip -d air_sdk_folder
+          # Скачиваем рабочий adt.jar напрямую из реестра Maven
+          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar
           
-          # Проверяем наличие adt.jar
-          ADT_JAR=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt.jar" | head -n 1)
+          # Создаем минимальный air-sdk-description.xml, чтобы adt не ругался на отсутствие SDK
+          cat << 'EOF' > air_sdk_folder/air-sdk-description.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <sdk>
+              <name>AIR SDK</name>
+              <version>32.0.0.116</version>
+              <build>116</build>
+          </sdk>
+          EOF
           
-          if [ -f "$ADT_JAR" ]; then
-            echo "ADT_JAR_PATH=$ADT_JAR" >> $GITHUB_ENV
-            echo "Found ADT JAR at: $ADT_JAR"
-          else
-            echo "adt.jar not found!"
-            exit 1
-          fi
+          echo "ADT_JAR_PATH=$GITHUB_WORKSPACE/air_sdk_folder/lib/adt.jar" >> $GITHUB_ENV
 
-      # Шаг 2: Скачиваем SWF ассеты
+      # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
