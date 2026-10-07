@@ -36,7 +36,7 @@ jobs:
         run: |
           adt -version
 
-      # Шаг 3: Скачивание SWF ассеты
+      # Шаг 3: Скачивание SWF ассетов
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -48,12 +48,13 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация временного сертификата (чтобы adt не требовал подпись Apple)
-      - name: Generate Dummy Certificate
+      # Шаг 4: Генерация сертификата и пустышки mobileprovision
+      - name: Generate Dummy Certificate & Provisioning Profile
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
+          echo "DUMMY_PROFILE" > profile.mobileprovision
 
-      # Упаковка iOS приложения в .ipa (с субтитрами *.txt, без json)
+      # Шаг 5: Упаковка iOS приложения в .ipa (с подсунутым профилем)
       - name: Package iOS App
         run: |
           adt -package \
@@ -61,6 +62,7 @@ jobs:
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
+            -provisioning-profile profile.mobileprovision \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
