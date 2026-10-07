@@ -16,30 +16,25 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем airsdkmanager с GitHub через GitHub CLI
+      # Шаг 1: Скачиваем и устанавливаем AIRSDKManager через installer
       - name: Setup Harman AIR SDK via airsdkmanager
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Скачиваем ассеты из последнего релиза airsdkmanager-releases
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*macOS*.zip" --pattern "*macos*.zip" --pattern "*.pkg" || true
+          # Скачиваем .pkg пакет из последнего релиза
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
-          # Распаковываем или находим скачанный файл
-          mkdir -p manager
-          if [ -f *.zip ]; then
-            unzip -q *.zip -d manager
-          elif [ -f *.pkg ]; then
-            pkgutil --expand-full *.pkg manager/
-          fi
+          # Устанавливаем .pkg в систему
+          sudo installer -pkg AIRSDKManager_*.pkg -target /
           
-          # Ищем исполняемый файл airsdkmanager и даем права
-          EXE_PATH=$(find manager -name "airsdkmanager" -type f | head -n 1)
-          chmod +x "$EXE_PATH"
+          # Находим установленный airsdkmanager CLI
+          AIRSDK_MGR=$(which airsdkmanager || echo "/Applications/AIRSDKManager.app/Contents/MacOS/airsdkmanager")
           
-          # Устанавливаем AIR SDK в папку air_sdk_folder
-          "$EXE_PATH" --install 51.1.1.5 --path ./air_sdk_folder --license-agree
+          # Устанавливаем нужную версию AIR SDK
+          sudo "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree || "$AIRSDK_MGR" --install 51.1.1.5 --path ./air_sdk_folder --license-agree
           
-          chmod +x air_sdk_folder/bin/adt
+          # Предоставляем права исполняемым файлам
+          chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из вашего релиза
@@ -57,7 +52,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
