@@ -5,7 +5,7 @@
     <filename>HenryStickmin</filename>
     <name>Henry Stickmin</name>
     <initialWindow>
-        <content>HenryStickmin.swf</content>
+        <content>Henry.swf</content>
         <visible>true</visible>
         <fullScreen>true</fullScreen>
         <aspectRatio>landscape</aspectRatio>
