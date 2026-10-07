@@ -16,18 +16,15 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и распаковываем готовый архив AIR SDK без сторонних экшенов
-      - name: Setup Harman AIR SDK
+      # Шаг 1: Установка AIR SDK через консольный apm (без pkg и без GUI)
+      - name: Setup Harman AIR SDK via APM
         run: |
-          mkdir -p air_sdk_folder
+          brew install marchbold/tap/apm || brew install airsdk/tap/apm
+          apm project init --force || true
+          apm sdk install 51.1.1.5
           
-          # Скачиваем прямо через curl из открытого релизного ассета
-          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.1.2/AIRSDK_MacOS.zip" -o air_sdk.zip || \
-          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.1.0/AIRSDK_MacOS.zip" -o air_sdk.zip
-          
-          unzip -q air_sdk.zip -d air_sdk_folder
-          chmod -R +x ./air_sdk_folder/bin/
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+          AIR_SDK_DIR=$(apm sdk path)
+          echo "$AIR_SDK_DIR/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
@@ -44,7 +41,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
