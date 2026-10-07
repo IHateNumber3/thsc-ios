@@ -16,14 +16,29 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIR SDK через консольный apm (без pkg и без GUI)
-      - name: Setup Harman AIR SDK via APM
+      # Шаг 1: Скачиваем APM напрямую с GitHub Releases и устанавливаем AIR SDK
+      - name: Setup Harman AIR SDK via Direct APM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          brew install marchbold/tap/apm || brew install airsdk/tap/apm
-          apm project init --force || true
-          apm sdk install 51.1.1.5
+          # 1. Выкачиваем последний релиз apm CLI через gh
+          gh release download --repo airsdk/apm --pattern "*macos*.zip" --clobber || \
+          gh release download --repo airsdk/apm --pattern "*.zip" --clobber
           
-          AIR_SDK_DIR=$(apm sdk path)
+          mkdir -p apm_bin
+          unzip -q *.zip -d apm_bin
+          
+          # Находим исполняемый файл apm
+          APM_EXEC=$(find apm_bin -name "apm" -type f | head -n 1)
+          chmod +x "$APM_EXEC"
+          
+          # 2. Инициализируем и выкачиваем SDK
+          "$APM_EXEC" project init --force || true
+          "$APM_EXEC" sdk install 51.1.1.5
+          
+          # 3. Добавляем путь к SDK в PATH
+          AIR_SDK_DIR=$("$APM_EXEC" sdk path)
+          chmod -R +x "$AIR_SDK_DIR/bin/"
           echo "$AIR_SDK_DIR/bin" >> $GITHUB_PATH
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
