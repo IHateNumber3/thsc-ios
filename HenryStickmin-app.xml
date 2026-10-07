@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <application xmlns="http://ns.adobe.com/air/application/51.0">
-    <id>com.slavuta.henrystickmin</id>
+    <id>com.shashly4ok.henrystickmin</id>
     <versionNumber>1.0.0</versionNumber>
     <filename>HenryStickmin</filename>
     <name>Henry Stickmin</name>
@@ -11,9 +11,6 @@
         <aspectRatio>landscape</aspectRatio>
         <renderMode>direct</renderMode>
     </initialWindow>
-    <touchCapabilities>
-        <touchMode>gesture</touchMode>
-    </touchCapabilities>
     <iPhone>
         <InfoAdditions><![CDATA[
             <key>UIDeviceFamily</key>
