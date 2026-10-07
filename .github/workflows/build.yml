@@ -16,30 +16,26 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем, распаковываем Flex SDK и инспектируем файлы
-      - name: Inspect Flex SDK Structure & Set Path
+      # Шаг 1: Скачиваем готовый автономный AIR SDK напрямую с GitHub Releases
+      - name: Download Harman AIR SDK
         run: |
-          mkdir -p air_sdk_folder
-          curl -sSL "https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.zip" -o flex_sdk.zip
-          unzip -q flex_sdk.zip -d air_sdk_folder
+          mkdir -p air_sdk
           
-          echo "=== Поиск всех исполняемых файлов adt и папок bin ==="
-          find air_sdk_folder -name "adt*" -o -name "bin"
+          # Забираем проверенный сборник AIR SDK
+          curl -sSL -L "https://github.com/airframework/air-sdk-releases/releases/download/v50.2.3.1/AIRSDK_Compiler.zip" -o air_sdk.zip
           
-          echo "=== Дерево файлов первого уровня в air_sdk_folder ==="
-          ls -la air_sdk_folder
+          unzip -q air_sdk.zip -d air_sdk
           
-          # Ищем реальный путь к adt
-          ADT_PATH=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
+          # Ищем adt и заносим в PATH
+          ADT_PATH=$(find "$GITHUB_WORKSPACE/air_sdk" -name "adt" -type f | head -n 1)
           
           if [ -n "$ADT_PATH" ]; then
             ADT_DIR=$(dirname "$ADT_PATH")
             chmod -R +x "$ADT_DIR"
             echo "$ADT_DIR" >> $GITHUB_PATH
-            echo "REAL_ADT_PATH=$ADT_PATH" >> $GITHUB_ENV
-            echo "Found ADT at: $ADT_PATH"
+            echo "ADT successfully found at: $ADT_PATH"
           else
-            echo "ADT executable not found in zip!"
+            echo "ADT not found in extracted archive"
             exit 1
           fi
 
@@ -55,14 +51,15 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 3: Запуск сборки ipa через найденный adt
+      # Шаг 3: Упаковка iOS приложения в .ipa
       - name: Package iOS App
         run: |
-          "$REAL_ADT_PATH" -package -target ipa-test-interpreter \
+          adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
 
+      # Шаг 4: Сохраняем готовую IPA в артефакты
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
