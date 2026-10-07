@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Ра распаковка AIR SDK
+      # Шаг 1: Распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -48,60 +48,34 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация PFX и создание фейкового бинарного mobileprovision через OpenSSL
+      # Шаг 4: Генерация PFX и создание бинарного profile.mobileprovision
       - name: Generate Dummy Certificate and Provisioning Profile
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
           
-          # Создаем базовый plist
-          cat << 'EOF' > profile.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>AppIDName</key>
-	<string>HenryStickmin</string>
-	<key>ApplicationIdentifierPrefix</key>
-	<array>
-		<string>1234567890</string>
-	</array>
-	<key>CreationDate</key>
-	<date>2026-01-01T00:00:00Z</date>
-	<key>Entitlements</key>
-	<dict>
-		<key>application-identifier</key>
-		<string>1234567890.com.henry.stickmin</string>
-		<key>get-task-allow</key>
-		<true/>
-	</dict>
-	<key>ExpirationDate</key>
-	<date>2030-01-01T00:00:00Z</date>
-	<key>Name</key>
-	<string>Dummy Profile</string>
-	<key>ProvisionedDevices</key>
-	<array/>
-	<key>TeamIdentifier</key>
-	<array>
-		<string>1234567890</string>
-	</array>
-	<key>TimeToLive</key>
-	<integer>3650</integer>
-	<key>UUID</key>
-	<string>12345678-1234-1234-1234-123456789012</string>
-	<key>Version</key>
-	<integer>1</integer>
-</dict>
-</plist>
-EOF
-
-          # Генерируем самоподписанный ключик для запаковки Plist в формат PKCS7 DER
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > profile.plist
+          echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> profile.plist
+          echo '<plist version="1.0"><dict>' >> profile.plist
+          echo '<key>AppIDName</key><string>HenryStickmin</string>' >> profile.plist
+          echo '<key>ApplicationIdentifierPrefix</key><array><string>1234567890</string></array>' >> profile.plist
+          echo '<key>CreationDate</key><date>2026-01-01T00:00:00Z</date>' >> profile.plist
+          echo '<key>Entitlements</key><dict><key>application-identifier</key><string>1234567890.com.henry.stickmin</string><key>get-task-allow</key><true/></dict>' >> profile.plist
+          echo '<key>ExpirationDate</key><date>2030-01-01T00:00:00Z</date>' >> profile.plist
+          echo '<key>Name</key><string>Dummy Profile</string>' >> profile.plist
+          echo '<key>ProvisionedDevices</key><array/>' >> profile.plist
+          echo '<key>TeamIdentifier</key><array><string>1234567890</string></array>' >> profile.plist
+          echo '<key>TimeToLive</key><integer>3650</integer>' >> profile.plist
+          echo '<key>UUID</key><string>12345678-1234-1234-1234-123456789012</string>' >> profile.plist
+          echo '<key>Version</key><integer>1</integer>' >> profile.plist
+          echo '</dict></plist>' >> profile.plist
+          
           openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout dummy_prof.key -out dummy_prof.crt -subj "/CN=DummyProf"
           openssl smime -sign -in profile.plist -out profile.mobileprovision -signer dummy_prof.crt -inkey dummy_prof.key -outform DER
           
           ls -lh profile.mobileprovision
 
-      # Шаг 5: Упаковка 64-битного iOS приложения (iPhoneOS target)
-      - name: Package iOS App (Real Device Target)
+      # Шаг 5: Упаковка 64-битного iOS приложения (iphoneos target)
+      - name: Package iOS App
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
