@@ -48,28 +48,28 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Сборка iOS App Bundle без подписей и профилей
-      - name: Package iOS Bundle
+      # Шаг 4: Генерация dummy PFX и скачивание профиля
+      - name: Setup Certificates
+        run: |
+          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
+          curl -sSL -L "https://raw.githubusercontent.com/opa333/TrollStore/main/Base/_embedded.mobileprovision" -o profile.mobileprovision
+
+      # Шаг 5: Упаковка 64-битного IPA с правильным порядком Signing Options
+      - name: Package iOS App
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
-          # Собираем сырую папку приложения (bundle), ADT не будет просить сертификаты
           adt -package \
-            -target bundle \
-            HenryStickmin.app \
+            -target ipa-test-interpreter \
+            -storetype pkcs12 \
+            -keystore dummy.pfx \
+            -storepass certpassword \
+            -provisioning-profile profile.mobileprovision \
+            HenryStickmin.ipa \
             HenryStickmin-app.xml \
             -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
-
-      # Шаг 5: Ручная упаковка в структура IPA (Payload/HenryStickmin.app)
-      - name: Create IPA Package
-        run: |
-          mkdir -p Payload
-          mv HenryStickmin.app Payload/
-          zip -r HenryStickmin.ipa Payload
-          
-          ls -lh HenryStickmin.ipa
 
       # Шаг 6: Выгрузка готового .ipa в артефакты
       - name: Upload IPA Artifact
