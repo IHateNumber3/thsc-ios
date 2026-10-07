@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Установка AIR SDK
+      # Крок 1: Встановлення AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Проверка ADT
+      # Крок 2: Перевірка ADT
       - name: Verify ADT
         run: |
           adt -version
 
-      # Шаг 3: Скачивание SWF файлов
+      # Крок 3: Завантаження SWF файлів
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -46,7 +46,7 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
 
-      # Шаг 4: Генерация PFX и сборка бандла
+      # Крок 4: Пакування симулятора для збору структури файлів
       - name: Package Base IPA
         run: |
           SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
@@ -63,8 +63,8 @@ jobs:
             -platformsdk "$SIM_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Шаг 5: Распаковка, ad-hoc подпись через codesign и запаковка ditto (как в Source Engine)
-      - name: Patch and Build Final IPA
+      # Крок 5: Заміна симуляторного x86 бинарника на справжній ARM64 runner та ad-hoc підпис
+      - name: Replace Executable with ARM64 Runner
         run: |
           unzip -q HenryStickmin.ipa -d temp_extract
           
@@ -73,19 +73,33 @@ jobs:
           mv temp_extract/Payload/HenryStickmin.app Payload/
           rm -rf temp_extract
 
-          echo "=== Ad-hoc codesigning ==="
-          find Payload/HenryStickmin.app -name "*.dylib" -exec codesign --force --sign - --timestamp=none {} \; || true
-          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+          APP_DIR="Payload/HenryStickmin.app"
+          
+          # Знаходимо чесний 64-бітний ARM64 інтерпретатор для iOS усередині AIR SDK
+          ARM64_RUNNER=$(find "$AIR_HOME" -name "CTAIRInterpreter" -exec file {} \; | grep -i "arm64" | cut -d: -f1 | head -n 1)
+          
+          if [ -z "$ARM64_RUNNER" ]; then
+            # Якщо окремий файл не знайдено, беремо універсальний рантайм
+            ARM64_RUNNER=$(find "$AIR_HOME" -path "*/runtimes/air/ios/*" -name "CTAIRInterpreter" | head -n 1)
+          fi
 
-          echo "=== Verifying signature ==="
-          codesign --verify --deep --strict Payload/HenryStickmin.app || true
+          echo "Found ARM64 AIR Runner: $ARM64_RUNNER"
+
+          # Підміняємо бінарник HenryStickmin на ARM64 версію
+          cp -f "$ARM64_RUNNER" "$APP_DIR/HenryStickmin"
+          chmod +x "$APP_DIR/HenryStickmin"
+
+          # Ad-hoc підпис Apple через codesign (як у джерелі Source Engine)
+          echo "=== Ad-hoc codesigning ==="
+          find "$APP_DIR" -name "*.dylib" -exec codesign --force --sign - --timestamp=none {} \; || true
+          codesign --force --sign - --timestamp=none "$APP_DIR"
 
           echo "=== Zipping IPA via ditto ==="
           ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin.ipa
           
           ls -lh HenryStickmin.ipa
 
-      # Шаг 6: Выгрузка IPA
+      # Крок 6: Вивантаження IPA
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
