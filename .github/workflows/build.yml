@@ -16,13 +16,36 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Устанавливаем официальный AIR SDK напрямую через готовую Action
+      # Шаг 1: Скачиваем AIRSDK_MacOS.zip из твоих релизов и настраиваем по мануалу
       - name: Setup AIR SDK
-        uses: eskimoblood/setup-air-action@v1
-        with:
-          air-version: '33.1.1.743'
+        run: |
+          mkdir -p ~/sdks/air
+          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
+          
+          # Скачиваем официальный AIRSDK_MacOS.zip
+          curl -sSL --fail "$BASE_URL/AIRSDK_MacOS.zip" -o ~/Downloads/AIRSDK_MacOS.zip
+          
+          # Распаковываем
+          unzip -q ~/Downloads/AIRSDK_MacOS.zip -d ~/sdks/air
+          
+          # Снимаем карантин macOS (как в инструкции)
+          xattr -r -d com.apple.quarantine ~/sdks/air || true
+          
+          # Проставляем права на выполнение
+          chmod -R +x ~/sdks/air/bin
+          
+          # Добавляем AIR_HOME и PATH в окружение GitHub Actions
+          echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
+          echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
+          
+          echo "AIR SDK configured successfully!"
 
-      # Скачиваем SWF ассеты
+      # Шаг 2: Проверяем версию adt (как в инструкции)
+      - name: Verify ADT
+        run: |
+          adt -version
+
+      # Шаг 3: Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -34,7 +57,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Упаковка iOS приложения в .ipa
+      # Шаг 4: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
@@ -42,7 +65,7 @@ jobs:
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
 
-      # Сохраняем готовую IPA в артефакты
+      # Шаг 5: Сохранение артефакта
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
