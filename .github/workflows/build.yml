@@ -16,13 +16,55 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Разворачиваем Harman AIR SDK через специальный CI/CD экшен
-      - name: Setup Harman AIR SDK
-        uses: purda/setup-airsdk@v1.2.0
-        with:
-          version: '51.1.1.5'
+      # Шаг 1: Скачивание AIR SDK с детальным логированием
+      - name: Download Harman AIR SDK with Debug Output
+        run: |
+          python3 -c '
+          import urllib.request
+          import zipfile
+          import os
+          import sys
 
-      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
+          url = "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/mac"
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "*/*"
+          }
+
+          print("[DEBUG] Sending request to Harman server...")
+          req = urllib.request.Request(url, headers=headers)
+          
+          try:
+              with urllib.request.urlopen(req) as response:
+                  print(f"[DEBUG] HTTP Status Code: {response.getcode()}")
+                  print(f"[DEBUG] Content-Type: {response.headers.get(\"Content-Type\")}")
+                  data = response.read()
+                  print(f"[DEBUG] Downloaded size: {len(data)} bytes")
+                  
+                  with open("air_sdk.zip", "wb") as f:
+                      f.write(data)
+                      
+          except Exception as e:
+              print(f"[ERROR] Download failed: {e}")
+              sys.exit(1)
+
+          print("[DEBUG] Unzipping air_sdk.zip...")
+          try:
+              with zipfile.ZipFile("air_sdk.zip", "r") as zip_ref:
+                  zip_ref.extractall("air_sdk_folder")
+              print("[DEBUG] Unzip successful!")
+          except Exception as e:
+              print(f"[ERROR] Unzip failed (file might not be a ZIP): {e}")
+              sys.exit(1)
+          '
+          
+          echo "=== Content of air_sdk_folder ==="
+          ls -la air_sdk_folder || true
+          
+          chmod -R +x ./air_sdk_folder/bin/
+          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+
+      # Шаг 2: Скачивание SWF
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -37,14 +79,4 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          adt -package -target ipa-test-interpreter \
-            HenryStickmin.ipa \
-            HenryStickmin-app.xml \
-            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
-
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: HenryStickmin-unsigned-ipa
-          path: HenryStickmin.ipa
-          if-no-files-found: error
+          ./air_sdk_folder/bin/adt -package
