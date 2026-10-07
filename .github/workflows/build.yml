@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем и устанавливаем AIR SDK Manager, затем ставим сам SDK
+      # Шаг 1: Установка AIR SDK Manager и скачивание AIR SDK
       - name: Install Harman AIR SDK via Manager CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -25,36 +25,35 @@ jobs:
           gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
           
           PKG_FILE=$(ls *.pkg | head -n 1)
-          echo "Installing: $PKG_FILE"
+          echo "Installing package: $PKG_FILE"
           
           # 2. Устанавливаем PKG в систему
           sudo installer -pkg "$PKG_FILE" -target /
           
-          # 3. Ищем бинарник airsdkmanager внутри установленного /Applications
+          # 3. Ищем бинарник airsdkmanager CLI внутри установленного приложения
           CLI_BIN=$(find "/Applications/AIR SDK Manager.app" -name "airsdkmanager" -type f 2>/dev/null | head -n 1)
-          
           if [ -z "$CLI_BIN" ]; then
             CLI_BIN=$(find /Applications -name "airsdkmanager" -type f 2>/dev/null | head -n 1)
           fi
           
           echo "Found airsdkmanager CLI at: $CLI_BIN"
           
-          # 4. Скачиваем AIR SDK в папку air_sdk_folder
+          # 4. Скачиваем сам AIR SDK
           mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
           "$CLI_BIN" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
           
-          # 5. Ищем adt и добавляем в PATH
+          # 5. Ищем adt и добавляем его в PATH
           ADT_BIN=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
           if [ -n "$ADT_BIN" ]; then
             chmod -R +x "$(dirname "$ADT_BIN")"
             echo "$(dirname "$ADT_BIN")" >> $GITHUB_PATH
-            echo "ADT successfully prepared at: $ADT_BIN"
+            echo "ADT ready at: $ADT_BIN"
           else
-            echo "Failed to find adt after installation"
+            echo "Failed to find adt after SDK installation"
             exit 1
           fi
 
-      # Шаг 2: Скачиваем SWF ассеты из релиза Files
+      # Шаг 2: Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
