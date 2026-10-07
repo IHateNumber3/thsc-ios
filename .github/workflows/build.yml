@@ -16,14 +16,26 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      # Чистый консольный AIR SDK
+      # Шаг 1: Ставим чистый консольный AIR SDK
       - name: Setup Harman AIR SDK Clean
         run: |
           wget --no-check-certificate "https://archive.org" -O air_sdk.zip
           unzip -q air_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Пакуем ВСЕ swf, ВСЕ txt и json файлы из корня репозитория в одну кучу внутри .app
+      # Шаг 2: Скачиваем твои тяжелые SWF файлы из релизов твоего же репозитория
+      - name: Fetch SWF from GitHub Releases
+        run: |
+          # Скачиваем все файлы по прямым ссылкам из твоего релиза v1.0
+          curl -L "https://github.com" -o Henry.swf
+          curl -L "https://github.com" -o HenryFtC.swf
+          curl -L "https://github.com" -o HenryCtM.swf
+          curl -L "https://github.com" -o HenryCtM2.swf
+          
+          # Проверяем, что все куски успешно скачались в корень
+          ls -la *.swf
+
+      # Шаг 3: Пакуем всё в .ipa
       - name: Packaging iOS App
         run: |
           ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
@@ -31,7 +43,7 @@ jobs:
             HenryStickmin-app.xml \
             Henry.swf \
             HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json 2>/dev/null || ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter HenryStickmin.ipa HenryStickmin-app.xml Henry.swf
-            
+
       - name: Distribute Artifact
         uses: actions/upload-artifact@v4
         with:
