@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Крок 1: Розпакування AIR SDK
+      # Шаг 1: Распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Крок 2: Перевірка adt
+      # Шаг 2: Проверка наличия adt
       - name: Verify ADT
         run: |
           adt -version
 
-      # Крок 3: Завантаження SWF асетів
+      # Шаг 3: Скачивание SWF ассетов
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -48,12 +48,12 @@ jobs:
           
           ls -lh *.swf
 
-      # Крок 4: Генерація PFX-сертифіката
+      # Шаг 4: Генерация PFX-сертификата
       - name: Generate Dummy Certificate
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
 
-      # Крок 5: Упаковка iOS застосунку в .ipa з вказуванням platformsdk
+      # Шаг 5: Упаковка iOS приложения в .ipa (с правильным порядком -platformsdk)
       - name: Package iOS App
         run: |
           SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
@@ -64,12 +64,12 @@ jobs:
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
-            -platformsdk "$SIM_SDK_PATH" \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
+            -platformsdk "$SIM_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Крок 6: Завантаження готового .ipa в артефакты
+      # Шаг 6: Выгрузка готового .ipa в артефакты
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
