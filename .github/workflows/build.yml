@@ -48,25 +48,68 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Генерация PFX-сертификата
-      - name: Generate Dummy Certificate
+      # Шаг 4: Генерация PFX и фейкового бинарного mobileprovision
+      - name: Generate Dummy Certificate and Provisioning Profile
         run: |
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
+          
+          # Создаем минимальный валидный ASN.1 / plist файл для mobileprovision
+          cat << 'EOF' > profile.mobileprovision
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppIDName</key>
+	<string>HenryStickmin</string>
+	<key>ApplicationIdentifierPrefix</key>
+	<array>
+		<string>1234567890</string>
+	</array>
+	<key>CreationDate</key>
+	<date>2026-01-01T00:00:00Z</date>
+	<key>Entitlements</key>
+	<dict>
+		<key>application-identifier</key>
+		<string>1234567890.com.henry.stickmin</string>
+		<key>get-task-allow</key>
+		<true/>
+	</dict>
+	<key>ExpirationDate</key>
+	<date>2030-01-01T00:00:00Z</date>
+	<key>Name</key>
+	<string>Dummy Profile</string>
+	<key>ProvisionedDevices</key>
+	<array/>
+	<key>TeamIdentifier</key>
+	<array>
+		<string>1234567890</string>
+	</array>
+	<key>TimeToLive</key>
+	<integer>3650</integer>
+	<key>UUID</key>
+	<string>12345678-1234-1234-1234-123456789012</string>
+	<key>Version</key>
+	<integer>1</integer>
+</dict>
+</plist>
+EOF
 
-      # Шаг 5: Упаковка iOS приложения в .ipa (с правильным порядком -platformsdk)
-      - name: Package iOS App
+      # Шаг 5: Упаковка 64-битного iOS приложения (armv8)
+      - name: Package iOS App (64-bit ARM)
         run: |
-          SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          echo "Simulator SDK path: $SIM_SDK_PATH"
+          OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
           adt -package \
-            -target ipa-test-interpreter-simulator \
+            -target ipa-test-interpreter \
+            -arch armv8 \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
+            -provisioning-profile profile.mobileprovision \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
-            -platformsdk "$SIM_SDK_PATH" \
+            -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
       # Шаг 6: Выгрузка готового .ipa в артефакты
