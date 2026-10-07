@@ -23,15 +23,15 @@ jobs:
           unzip -q air_sdk.zip -d air_sdk_folder
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Пакуем Henry.swf и все файлы субтитров из корня репозитория в корень .app
+      # Пакуем ВСЕ swf, ВСЕ txt и json файлы из корня репозитория в одну кучу внутри .app
       - name: Packaging iOS App
         run: |
           ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf \
-            *subtitles.txt *.txt *.json 2>/dev/null || ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter HenryStickmin.ipa HenryStickmin-app.xml Henry.swf
-
+            HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json 2>/dev/null || ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter HenryStickmin.ipa HenryStickmin-app.xml Henry.swf
+            
       - name: Distribute Artifact
         uses: actions/upload-artifact@v4
         with:
