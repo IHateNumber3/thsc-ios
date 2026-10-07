@@ -16,35 +16,23 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Устанавливаем AIRSDKManager .pkg и скачиваем SDK через CLI
-      - name: Setup Harman AIR SDK via AIRSDKManager CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Шаг 1: Скачиваем архив AIR SDK напрямую с серверов Harman с эмуляцией браузера (User-Agent)
+      - name: Download Harman AIR SDK
         run: |
-          # 1. Скачиваем .pkg из официального репозитория
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*.pkg" --clobber
+          mkdir -p air_sdk_folder
           
-          # 2. Устанавливаем .pkg в систему
-          sudo installer -pkg AIRSDKManager_*.pkg -target /
+          # Скачиваем с заголовоком User-Agent, чтобы обходить 403 от CDN Harman
+          curl -sSL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
+            "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/mac" -o air_sdk.zip
           
-          # 3. Ищем бинарник CLI утилиты airsdkmanager
-          MGR_PATH=$(which airsdkmanager || echo "/Applications/AIRSDKManager.app/Contents/Resources/bin/airsdkmanager")
-          if [ ! -f "$MGR_PATH" ]; then
-            MGR_PATH=$(find /Applications/AIRSDKManager.app -name "airsdkmanager" -type f | head -n 1)
-          fi
+          # Распаковываем полученный zip напрямую
+          unzip -q air_sdk.zip -d air_sdk_folder
           
-          echo "Found airsdkmanager at: $MGR_PATH"
-          
-          # 4. Скачиваем AIR SDK в папку air_sdk_folder
-          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
-          "$MGR_PATH" --install --version 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree || \
-          "$MGR_PATH" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
-          
-          # 5. Выставляем права на исполнение и добавляем в PATH
-          chmod -R +x "$GITHUB_WORKSPACE/air_sdk_folder/bin/"
+          # Настраиваем права на исполнение бинарников и добавляем adt в PATH
+          chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Скачиваем SWF ассеты из вашего релиза Files
+      # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -59,7 +47,7 @@ jobs:
       # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
-          adt -package -target ipa-test-interpreter \
+          ./air_sdk_folder/bin/adt -package -target ipa-test-interpreter \
             HenryStickmin.ipa \
             HenryStickmin-app.xml \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt *.json
