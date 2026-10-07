@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Ра распаковка AIR SDK
+      # Шаг 1: Распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -48,32 +48,28 @@ jobs:
           
           ls -lh *.swf
 
-      # Шаг 4: Выкачиваем оригинальный profile.mobileprovision
-      - name: Fetch Valid Provisioning Profile
-        run: |
-          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
-          
-          # Скачиваем оригинальный файл embedded.mobileprovision напрямую
-          curl -sSL -L "https://raw.githubusercontent.com/opa333/TrollStore/main/Base/_embedded.mobileprovision" -o profile.mobileprovision
-          
-          ls -lh profile.mobileprovision
-
-      # Шаг 5: Сборка 64-битного IPA без проверки сертификата соответствия
-      - name: Package iOS App (64-bit Interpreter)
+      # Шаг 4: Сборка iOS App Bundle без подписей и профилей
+      - name: Package iOS Bundle
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
+          # Собираем сырую папку приложения (bundle), ADT не будет просить сертификаты
           adt -package \
-            -target ipa-test-interpreter \
-            -storetype pkcs12 \
-            -keystore dummy.pfx \
-            -storepass certpassword \
-            -provisioning-profile profile.mobileprovision \
-            HenryStickmin.ipa \
+            -target bundle \
+            HenryStickmin.app \
             HenryStickmin-app.xml \
             -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
+
+      # Шаг 5: Ручная упаковка в структура IPA (Payload/HenryStickmin.app)
+      - name: Create IPA Package
+        run: |
+          mkdir -p Payload
+          mv HenryStickmin.app Payload/
+          zip -r HenryStickmin.ipa Payload
+          
+          ls -lh HenryStickmin.ipa
 
       # Шаг 6: Выгрузка готового .ipa в артефакты
       - name: Upload IPA Artifact
