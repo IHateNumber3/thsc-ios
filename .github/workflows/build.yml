@@ -16,18 +16,28 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем airsdkmanager с официального GitHub Harman AIR
+      # Шаг 1: Скачиваем airsdkmanager с GitHub через GitHub CLI
       - name: Setup Harman AIR SDK via airsdkmanager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Скачиваем CLI утилиту airsdkmanager под macOS (arm64/x64)
-          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.1.3/airsdkmanager-macos-arm64.zip" -o airsdkmanager.zip || \
-          curl -sSL "https://github.com/airsdk/airsdkmanager-releases/releases/download/v1.1.3/airsdkmanager-macos-x64.zip" -o airsdkmanager.zip
+          # Скачиваем ассеты из последнего релиза airsdkmanager-releases
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*macOS*.zip" --pattern "*macos*.zip" --pattern "*.pkg" || true
           
-          unzip -q airsdkmanager.zip -d manager
-          chmod +x manager/airsdkmanager
+          # Распаковываем или находим скачанный файл
+          mkdir -p manager
+          if [ -f *.zip ]; then
+            unzip -q *.zip -d manager
+          elif [ -f *.pkg ]; then
+            pkgutil --expand-full *.pkg manager/
+          fi
+          
+          # Ищем исполняемый файл airsdkmanager и даем права
+          EXE_PATH=$(find manager -name "airsdkmanager" -type f | head -n 1)
+          chmod +x "$EXE_PATH"
           
           # Устанавливаем AIR SDK в папку air_sdk_folder
-          ./manager/airsdkmanager --install 51.1.1.5 --path ./air_sdk_folder --license-agree
+          "$EXE_PATH" --install 51.1.1.5 --path ./air_sdk_folder --license-agree
           
           chmod +x air_sdk_folder/bin/adt
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
