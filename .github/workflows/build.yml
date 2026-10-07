@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Распаковка AIR SDK
+      # Крок 1: Встановлення AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Проверка ADT
+      # Крок 2: Перевірка ADT
       - name: Verify ADT
         run: |
           adt -version
 
-      # Шаг 3: Скачивание SWF ассетов
+      # Крок 3: Скачування SWF файлів
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -46,53 +46,48 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
 
-      # Шаг 4: Генерация dummy PFX для формального удовлетворения ADT
-      - name: Create Dummy PFX
+      # Крок 4: Збірка сирого .app бандлу через ADT (без підписів!)
+      - name: Build App Bundle
         run: |
+          OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          
+          # Генеруємо формальний pfx для сумісності з ADT bundle
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
 
-      # Шаг 5: Сборка симуляторного пакета (без профиля мобилпровайдинга!)
-      - name: Package Base IPA
-        run: |
-          SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          
           adt -package \
-            -target ipa-test-interpreter-simulator \
+            -target bundle \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
-            HenryStickmin.ipa \
+            HenryStickmin.app \
             HenryStickmin-app.xml \
-            -platformsdk "$SIM_SDK_PATH" \
+            -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Шаг 6: Замена бинарника на ARM64 и сборка готового IPA
-      - name: Patch to 64-bit ARM64 Architecture
+      # Крок 5: Формування Payload, Ad-Hoc підпис через codesign та архівування ditto
+      - name: Package IPA via Ad-hoc Codesign
         run: |
-          unzip -q HenryStickmin.ipa -d ipa_extract
-          
-          # Ищем 64-битный исполняемый файл интерпретатора в AIR SDK
-          AIR_RUNNER=$(find "$AIR_HOME" -name "CTAIRInterpreter" | head -n 1)
-          echo "Found AIR runner: $AIR_RUNNER"
-          
-          APP_DIR=$(ls -d ipa_extract/Payload/*.app)
-          APP_NAME=$(basename "$APP_DIR" .app)
-          
-          # Заменяем симуляторный бинарник на настоящую 64-битную ARM64 структуру под iPhone
-          cp -f "$AIR_RUNNER" "$APP_DIR/$APP_NAME"
-          chmod +x "$APP_DIR/$APP_NAME"
-          
-          # Запаковываем финальный IPA
-          cd ipa_extract
-          zip -q -r ../HenryStickmin-ARM64.ipa Payload
-          cd ..
-          
-          ls -lh HenryStickmin-ARM64.ipa
+          rm -rf Payload HenryStickmin.ipa
+          mkdir -p Payload
+          mv HenryStickmin.app Payload/
 
-      # Шаг 7: Выгрузка готового .ipa
+          # Ad-hoc підпис усіх фреймворків, дрейфів та самого бінарника (як у скрипті Source Engine)
+          echo "=== Ad-hoc codesigning ==="
+          find Payload/HenryStickmin.app -name "*.dylib" -exec codesign --force --sign - --timestamp=none {} \; || true
+          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+
+          echo "=== Verifying signature ==="
+          codesign --verify --deep --strict Payload/HenryStickmin.app || true
+
+          echo "=== Zipping IPA via ditto ==="
+          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin.ipa
+          
+          ls -lh HenryStickmin.ipa
+
+      # Крок 6: Вивантаження IPA в артефакти
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-ARM64-ipa
-          path: HenryStickmin-ARM64.ipa
+          name: HenryStickmin-unsigned-ipa
+          path: HenryStickmin.ipa
           if-no-files-found: error
