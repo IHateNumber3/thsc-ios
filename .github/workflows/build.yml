@@ -16,21 +16,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый zip-архив AIR SDK с прямого зеркала
-      - name: Fetch Harman AIR SDK Archive
-        run: |
-          mkdir -p air_sdk_folder
-          
-          # Прямая ссылка на проверенный архив AIR SDK macOS
-          curl -sSL -o air_sdk.zip "https://web.archive.org/web/20230000000000if_/https://airsdk.harman.com/api/v1/downloads/sdk/33.1.1.932/mac" || \
-          curl -sSL -o air_sdk.zip "https://download.macromedia.com/air/mac/devnet/files/air_sdk_mac.zip"
-          
-          # Распаковываем
-          unzip -q air_sdk.zip -d air_sdk_folder
-          
-          # Находим bin и прописываем права
-          chmod -R +x ./air_sdk_folder/bin/
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+      # Шаг 1: Разворачиваем AIR SDK через готовый рабочий экшен
+      - name: Setup AIR SDK
+        uses: krispprog/setup-air-sdk@v1
+        with:
+          air-sdk-version: '51.1.1.5'
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
