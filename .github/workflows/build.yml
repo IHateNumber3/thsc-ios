@@ -16,7 +16,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Крок 1: Розпакування AIR SDK
+      # Шаг 1: Распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
@@ -31,12 +31,12 @@ jobs:
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Крок 2: Перевірка adt
+      # Шаг 2: Проверка наличия adt
       - name: Verify ADT
         run: |
           adt -version
 
-      # Крок 3: Завантаження SWF асетів
+      # Шаг 3: Скачивание SWF ассетов
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -48,46 +48,29 @@ jobs:
           
           ls -lh *.swf
 
-      # Крок 4: Генерація парного сертифіката та сумісного profile.mobileprovision
-      - name: Generate Matched Cert and Provisioning Profile
+      # Шаг 4: Выкачиваем оригинальный provisioning profile из AltStore и генерируем PFX
+      - name: Fetch Valid Provisioning Profile
         run: |
-          openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-            -keyout cert.key -out cert.crt \
-            -subj "/CN=iPhone Developer: Dummy/OU=DEV/O=Dummy/C=US"
-
-          openssl pkcs12 -export -out dummy.pfx -inkey cert.key -in cert.crt -passout pass:certpassword
-
-          CERT_DER=$(openssl x509 -in cert.crt -outform DER | base64 | tr -d '\n')
-
-          echo '<?xml version="1.0" encoding="UTF-8"?>' > profile.plist
-          echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> profile.plist
-          echo '<plist version="1.0"><dict>' >> profile.plist
-          echo '<key>AppIDName</key><string>HenryStickmin</string>' >> profile.plist
-          echo '<key>ApplicationIdentifierPrefix</key><array><string>1234567890</string></array>' >> profile.plist
-          echo '<key>CreationDate</key><date>2026-01-01T00:00:00Z</date>' >> profile.plist
-          echo '<key>DeveloperCertificates</key><array><data>'"$CERT_DER"'</data></array>' >> profile.plist
-          echo '<key>Entitlements</key><dict><key>application-identifier</key><string>1234567890.com.henry.stickmin</string><key>get-task-allow</key><true/></dict>' >> profile.plist
-          echo '<key>ExpirationDate</key><date>2030-01-01T00:00:00Z</date>' >> profile.plist
-          echo '<key>Name</key><string>Dummy Profile</string>' >> profile.plist
-          echo '<key>ProvisionedDevices</key><array/>' >> profile.plist
-          echo '<key>TeamIdentifier</key><array><string>1234567890</string></array>' >> profile.plist
-          echo '<key>TimeToLive</key><integer>3650</integer>' >> profile.plist
-          echo '<key>UUID</key><string>12345678-1234-1234-1234-123456789012</string>' >> profile.plist
-          echo '<key>Version</key><integer>1</integer>' >> profile.plist
-          echo '</dict></plist>' >> profile.plist
-
-          openssl smime -sign -in profile.plist -out profile.mobileprovision -signer cert.crt -inkey cert.key -outform DER
+          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
           
-          ls -lh profile.mobileprovision dummy.pfx
+          # Скачиваем официальный собранный AltStore.ipa и вытаскиваем из него валидный embedded.mobileprovision
+          curl -sSL -o altstore.ipa "https://github.com/altstoreio/AltStore/releases/download/v1.7.1/AltStore.ipa" || \
+          curl -sSL -o altstore.ipa "https://github.com/altstoreio/AltStore/releases/download/v1.6.3/AltStore.ipa"
+          
+          unzip -q altstore.ipa "Payload/*.app/embedded.mobileprovision" -d temp_prov
+          cp temp_prov/Payload/*.app/embedded.mobileprovision profile.mobileprovision
+          rm -rf temp_prov altstore.ipa
+          
+          ls -lh profile.mobileprovision
 
-      # Крок 5: Упаковка 64-бітного iOS застосунку (iphoneos target)
-      - name: Package iOS App
+      # Шаг 5: Сборка ipa-ad-hoc с оригинальным Apple-профилем
+      - name: Package iOS App (Ad-Hoc)
         run: |
           OS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iPhoneOS SDK path: $OS_SDK_PATH"
           
           adt -package \
-            -target ipa-test-interpreter \
+            -target ipa-ad-hoc \
             -storetype pkcs12 \
             -keystore dummy.pfx \
             -storepass certpassword \
@@ -97,7 +80,7 @@ jobs:
             -platformsdk "$OS_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Крок 6: Завантаження готового .ipa в артефакти
+      # Шаг 6: Выгрузка готового .ipa в артефакты
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
