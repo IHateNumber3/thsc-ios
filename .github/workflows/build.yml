@@ -16,33 +16,22 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Step 1: Скачиваем и распаковываем Linux AIR SDK Manager
-      - name: Setup AIR SDK via Linux Manager
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Шаг 1: Скачиваем официальный Linux AIR SDK напрямую
+      - name: Download Harman AIR SDK for Linux
         run: |
-          # 1. Скачиваем zip для linux
-          gh release download --repo airsdk/airsdkmanager-releases --pattern "*linux_amd64*.zip" --clobber
-          
-          # 2. Распаковываем
-          mkdir -p manager
-          unzip -q *.zip -d manager
-          
-          # 3. Находим исполняемый файл airsdkmanager
-          MGR_EXEC=$(find manager -type f -name "airsdkmanager*" | head -n 1)
-          chmod +x "$MGR_EXEC"
-          
-          echo "Found manager at: $MGR_EXEC"
-          
-          # 4. Скачиваем сам AIR SDK
           mkdir -p air_sdk_folder
-          "$MGR_EXEC" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree
           
-          # 5. Проверяем adt и добавляем в PATH
+          # Скачиваем официально поддерживаемый zip-архив AIR SDK для Linux
+          curl -sSL -A "Mozilla/5.0" "https://airsdk.harman.com/api/v1/downloads/sdk/51.1.1.5/linux" -o air_sdk.zip || \
+          curl -sSL -A "Mozilla/5.0" "https://airsdk.harman.com/download/51.1.1.5/AIRSDK_Linux.zip" -o air_sdk.zip
+          
+          unzip -q air_sdk.zip -d air_sdk_folder
+          
+          # Даем права на исполнение бинарникам (adt, adl и т.д.)
           chmod -R +x ./air_sdk_folder/bin/
           echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
 
-      # Step 2: Скачиваем SWF ассеты
+      # Шаг 2: Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
@@ -54,7 +43,7 @@ jobs:
           
           ls -lh *.swf
 
-      # Step 3: Упаковка приложения в .ipa
+      # Шаг 3: Упаковка приложения в .ipa
       - name: Package iOS App
         run: |
           adt -package -target ipa-test-interpreter \
