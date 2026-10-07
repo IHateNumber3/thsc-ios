@@ -16,23 +16,44 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Скачиваем готовый компилятор adt.jar из Maven
-      - name: Download ADT Compiler
+      # Шаг 1: Скачиваем DMG airsdkmanager, монтируем и устанавливаем AIR SDK
+      - name: Install Harman AIR SDK via Manager DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p air_sdk_folder/lib
+          # 1. Скачиваем DMG из официальных релизов Harman airsdkmanager
+          gh release download --repo airsdk/airsdkmanager-releases --pattern "*mac*.dmg" --clobber
           
-          # Скачиваем оригинальный ADT из публичного репозитория Maven Central / Apache Flex
-          curl -sSL "https://repo1.maven.org/maven2/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar || \
-          curl -sSL "https://jcenter.bintray.com/com/adobe/air/compiler/adt/32.0.0.116/adt-32.0.0.116.jar" -o air_sdk_folder/lib/adt.jar
-
-          # Создаем обертку для вызова adt
-          cat << 'EOF' > air_sdk_folder/bin/adt
-          #!/usr/bin/env bash
-          java -jar "$GITHUB_WORKSPACE/air_sdk_folder/lib/adt.jar" "$@"
-          EOF
-
-          chmod +x air_sdk_folder/bin/adt
-          echo "$GITHUB_WORKSPACE/air_sdk_folder/bin" >> $GITHUB_PATH
+          # 2. Монтируем DMG образ
+          DMG_FILE=$(ls *.dmg | head -n 1)
+          hdiutil attach "$DMG_FILE" -mountpoint /Volumes/AIRSDKManager
+          
+          # 3. Находим исполняемый файл бинарника airsdkmanager
+          MGR_BIN=$(find /Volumes/AIRSDKManager -type f -name "airsdkmanager" | head -n 1)
+          
+          if [ -z "$MGR_BIN" ]; then
+            # Если бинарник лежит внутри .app бандла
+            MGR_BIN=$(find /Volumes/AIRSDKManager -path "*/Contents/MacOS/*" -type f | head -n 1)
+          fi
+          
+          echo "Found manager at: $MGR_BIN"
+          
+          # 4. Скачиваем полноценный AIR SDK в рабочую папку
+          mkdir -p "$GITHUB_WORKSPACE/air_sdk_folder"
+          "$MGR_BIN" --install 51.1.1.5 --path "$GITHUB_WORKSPACE/air_sdk_folder" --license-agree || true
+          
+          # 5. Размонтируем DMG
+          hdiutil detach /Volumes/AIRSDKManager || true
+          
+          # 6. Проверяем, что adt на месте, и прописываем в PATH
+          ADT_PATH=$(find "$GITHUB_WORKSPACE/air_sdk_folder" -name "adt" -type f | head -n 1)
+          if [ -n "$ADT_PATH" ]; then
+            chmod -R +x "$(dirname "$ADT_PATH")"
+            echo "$(dirname "$ADT_PATH")" >> $GITHUB_PATH
+          else
+            echo "Failed to install AIR SDK via manager"
+            exit 1
+          fi
 
       # Шаг 2: Скачиваем SWF ассеты из релиза Files
       - name: Fetch SWF Assets
