@@ -12,7 +12,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "HenryStickmin",
-            path: "HenryApp"
+            path: "HenryApp",
+            resources: [
+                .copy("../WebAssets")
+            ]
         )
     ]
 )
