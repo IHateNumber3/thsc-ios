@@ -23,23 +23,23 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Нативная компиляция Swift из HenryApp/AppDelegate.swift и сборка бандла
+      # 2. Компилируем AppDelegate.swift с абсолютным путем
       - name: Build Unsigned App with swiftc
         run: |
           mkdir -p Payload/HenryStickmin.app
-          
-          # Компиляция чистого arm64 бинарника
+
+          # Компилируем arm64 бинарник, используя точный путь к файлу в репозитории
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
             -emit-executable \
             -o Payload/HenryStickmin.app/HenryStickmin \
-            HenryApp/AppDelegate.swift
+            "${{ github.workspace }}/HenryApp/AppDelegate.swift"
 
           # Копируем веб-ассеты (index.html, ruffle.js, *.wasm, *.swf) внутрь .app
           cp -R WebAssets Payload/HenryStickmin.app/
           
-          # Генерируем Info.plist
+          # Info.plist
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -60,16 +60,15 @@ jobs:
               <key>UIRequiresFullScreen</key>
               <true/>
           </dict>
-          </plist>
           EOF
 
-      # 3. Подпись псевдо-сертификатом (Ad-Hoc) и упаковка в .ipa
+      # 3. Подпись Ad-Hoc и упаковка IPA
       - name: Package IPA
         run: |
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
           ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-native-unsigned.ipa
 
-      # 4. Выгрузка готового IPA в артефакты GitHub Actions
+      # 4. Выгрузка готового IPA в артефакты
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
