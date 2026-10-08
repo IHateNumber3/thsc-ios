@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF
+      # 1. Скачиваем SWF ассеты
       - name: Fetch SWF Assets from Releases
         run: |
           mkdir -p WebAssets
@@ -23,13 +23,13 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Компиляция и сборка правильной структуры .app
+      # 2. Компиляция и сборка правильной структуры Payload/HenryStickmin.app
       - name: Build Native App Bundle
         run: |
           rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
-          # Компилируем арм64 бинарник
+          # Компилируем арм64 бинарник прямо из папки HenryApp/
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
@@ -80,15 +80,13 @@ jobs:
                   <string>iPhoneOS</string>
               </array>
           </dict>
-          </plist>
           EOF
 
-      # 3. Упаковка IPA через zip
+      # 3. Правильная упаковка IPA (сохраняем папку Payload внутри zip)
       - name: Package Valid IPA
         run: |
-          cd Payload
-          zip -r ../HenryStickmin-native.ipa HenryStickmin.app
-          cd ..
+          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+          zip -r HenryStickmin-native.ipa Payload
 
       # 4. Выгрузка артефакта
       - name: Upload IPA Artifact
