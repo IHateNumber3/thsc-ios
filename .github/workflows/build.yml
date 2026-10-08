@@ -91,10 +91,22 @@ jobs:
       - name: Dummy signing identity + fake profile (KSign re-signs later)
         run: |
           mkdir -p build/sign
-          java -jar "$SDK/lib/adt.jar" -certificate -cn Dummy -validityPeriod 25 \
-            2048-RSA build/sign/dummy.p12 pass
-          openssl pkcs12 -in build/sign/dummy.p12 -passin pass:pass -nokeys -clcerts \
-            | openssl x509 -outform der -out build/sign/cert.der
+          OSSL="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"
+          [ -x "$OSSL" ] || OSSL=openssl
+          "$OSSL" version
+          # Apple-style development cert: CN "iPhone Developer: ...", codeSigning EKU,
+          # Apple iOS-development OID extension
+          "$OSSL" req -x509 -newkey rsa:2048 -nodes -days 3650 \
+            -keyout build/sign/key.pem -out build/sign/cert.pem \
+            -subj "/CN=iPhone Developer: Dummy Dev (DUMMY00000)/OU=DUMMY00000/O=Dummy Dev/C=US" \
+            -addext "keyUsage=critical,digitalSignature" \
+            -addext "extendedKeyUsage=critical,codeSigning" \
+            -addext "1.2.840.113635.100.6.1.2=critical,DER:0500"
+          "$OSSL" pkcs12 -export -inkey build/sign/key.pem -in build/sign/cert.pem \
+            -name dummy -passout pass:pass \
+            -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+            -out build/sign/dummy.p12
+          "$OSSL" x509 -in build/sign/cert.pem -outform der -out build/sign/cert.der
           python3 - <<'PY'
           import plistlib, uuid, datetime
           cert = open("build/sign/cert.der", "rb").read()
@@ -116,13 +128,12 @@ jobs:
               "ProvisionsAllDevices": True,
           }, open("build/sign/profile.plist", "wb"))
           PY
-          # CMS-wrap the plist with the dummy cert/key
-          openssl pkcs12 -in build/sign/dummy.p12 -passin pass:pass -nocerts -nodes \
-            -out build/sign/key.pem
-          openssl x509 -inform der -in build/sign/cert.der -out build/sign/cert.pem
-          openssl smime -sign -nodetach -binary -outform der \
+          "$OSSL" smime -sign -nodetach -binary -outform der \
             -in build/sign/profile.plist -signer build/sign/cert.pem \
             -inkey build/sign/key.pem -out build/sign/dummy.mobileprovision
+          echo "--- adt -checkstore ---"
+          java -jar "$SDK/lib/adt.jar" -checkstore -storetype pkcs12 \
+            -keystore build/sign/dummy.p12 -storepass pass || true
 
       - name: "Package IPA (interpreter, game loads sub-SWFs at runtime)"
         working-directory: build/pkg
