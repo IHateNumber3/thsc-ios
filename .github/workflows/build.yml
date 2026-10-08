@@ -87,7 +87,7 @@ jobs:
           }
           EOF
 
-      # 3. Прямая компиляция через swiftc с указанием фреймворков
+      # 3. Компиляция через swiftc с чистыми флагами SDK
       - name: Build Executable via swiftc
         run: |
           rm -rf Payload
@@ -99,9 +99,6 @@ jobs:
             -target arm64-apple-ios16.0 \
             -sdk "$SDK_PATH" \
             -parse-as-library \
-            -frame-path "$SDK_PATH/System/Library/Frameworks" \
-            -Xlinker -rpath -Xlinker /System/Library/Frameworks \
-            -Xlinker -rpath -Xlinker @executable_path/Frameworks \
             -O \
             -o Payload/HenryStickmin.app/HenryStickmin \
             HenryApp/AppDelegate.swift
@@ -141,24 +138,4 @@ jobs:
                   <integer>1</integer>
                   <integer>2</integer>
               </array>
-              <key>UIRequiresFullScreen</key>
-              <true/>
-              <key>CFBundleSupportedPlatforms</key>
-              <array>
-                  <string>iPhoneOS</string>
-              </array>
-          </dict>
-          EOF
-
-      # 4. Упаковка IPA
-      - name: Package IPA
-        run: |
-          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
-          zip -r HenryStickmin-native.ipa Payload
-
-      # 5. Выгрузка
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: HenryStickmin-native-ipa
-          path: HenryStickmin-native.ipa
+              <key>UIRequiresFullScreen</key
