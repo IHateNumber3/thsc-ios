@@ -36,12 +36,42 @@ jobs:
 
       - name: Build stub ANE (replaces Windows-only FRESteamWorks)
         run: |
-          mkdir -p build/ext
+          mkdir -p build/ext stub/src/com/amanitadesign/steam
+          cat > stub/src/com/amanitadesign/steam/FRESteamWorks.as <<'AS'
+          package com.amanitadesign.steam
+          {
+          	import flash.events.EventDispatcher;
+          	import flash.events.IEventDispatcher;
+          	public class FRESteamWorks extends EventDispatcher
+          	{
+          		public function FRESteamWorks(target:IEventDispatcher = null) { super(target); }
+          		public function init():Boolean { return true; }
+          		public function isReady():Boolean { return true; }
+          		public function runCallbacks():Boolean { return true; }
+          		public function requestStats():Boolean { return true; }
+          		public function storeStats():Boolean { return true; }
+          		public function setAchievement(name:String):Boolean { return true; }
+          		public function isAchievement(name:String):Boolean { return false; }
+          		public function clearAchievement(name:String):Boolean { return true; }
+          		public function dispose():void {}
+          	}
+          }
+          AS
+          cat > build/extension.xml <<EXT
+          <extension xmlns="http://ns.adobe.com/air/extension/$AIRVER">
+          	<id>com.amanitadesign.steam.FRESteamWorks</id>
+          	<versionNumber>0.7.0</versionNumber>
+          	<platforms>
+          		<platform name="default">
+          			<applicationDeployment/>
+          		</platform>
+          	</platforms>
+          </extension>
+          EXT
           "$SDK/bin/compc" +configname=air \
             -source-path stub/src \
             -include-classes com.amanitadesign.steam.FRESteamWorks \
             -output build/stub.swc
-          sed "s/AIRVER/$AIRVER/" stub/extension.xml > build/extension.xml
           java -jar "$SDK/lib/adt.jar" -package -target ane \
             build/ext/com.amanitadesign.steam.FRESteamWorks.ane \
             build/extension.xml -swc build/stub.swc -platform default
