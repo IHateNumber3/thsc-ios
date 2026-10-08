@@ -19,12 +19,12 @@ jobs:
       # 1. Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
-          mkdir -p WebAssets
+          mkdir -p HenryApp/WebAssets
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          curl -sSL --fail "$BASE_URL/Henry.swf" -o WebAssets/Henry.swf
-          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o WebAssets/HenryFtC.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
+          curl -sSL --fail "$BASE_URL/Henry.swf" -o HenryApp/WebAssets/Henry.swf
+          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o HenryApp/WebAssets/HenryFtC.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryApp/WebAssets/HenryCtM.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryApp/WebAssets/HenryCtM2.swf
 
       # 2. Убеждаемся, что AppDelegate.swift на месте внутри HenryApp
       - name: Ensure HenryApp Source Exists
@@ -42,7 +42,8 @@ jobs:
                   var path = url.path
                   if path == "/" || path.isEmpty { path = "/index.html" }
                   
-                  guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else { return }
+                  // Ищем внутри запеченной папки HenryApp в бандле
+                  guard let bundlePath = Bundle.main.path(forResource: "HenryApp", ofType: nil) else { return }
                   let filePath = bundlePath + path
                   
                   if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
@@ -81,7 +82,7 @@ jobs:
                   webView.scrollView.isScrollEnabled = false
                   vc.view.addSubview(webView)
                   
-                  if let url = URL(string: "app://henry/index.html") {
+                  if let url = URL(string: "app://henry/WebAssets/index.html") {
                       webView.load(URLRequest(url: url))
                   }
                   
@@ -93,7 +94,7 @@ jobs:
           EOF
           fi
 
-      # 3. Генерируем проект через XcodeGen
+      # 3. Генерируем проект: компилируем AppDelegate.swift, а всю папку HenryApp пакуем целиком как ресурс
       - name: Generate Xcode Project
         run: |
           cat << 'EOF' > project.yml
@@ -107,9 +108,11 @@ jobs:
               type: application
               platform: iOS
               sources:
-                - path: HenryApp
+                - path: HenryApp/AppDelegate.swift
               resources:
-                - path: WebAssets
+                - path: HenryApp
+                  excludes:
+                    - "AppDelegate.swift"
               settings:
                 PRODUCT_BUNDLE_IDENTIFIER: com.henry.stickmin
                 GENERATE_INFOPLIST_FILE: YES
@@ -134,14 +137,18 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      # 5. Упаковка в IPA
+      # 5. Упаковка в IPA (папка HenryApp со всеми файлами лежит прямо внутри Payload/HenryStickmin.app/)
       - name: Package Native IPA
         run: |
+          rm -rf Payload
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
-          if [ -d "WebAssets" ]; then
-            cp -R WebAssets Payload/HenryStickmin.app/
+          
+          # На всякий случай проверяем, чтобы папка HenryApp со всеми файлами точно скопировалась внутрь .app
+          if [ -d "HenryApp" ]; then
+            rsync -av --exclude="AppDelegate.swift" HenryApp/ Payload/HenryStickmin.app/HenryApp/
           fi
+          
           zip -r HenryStickmin-native.ipa Payload
 
       # 6. Выгрузка артефакта
