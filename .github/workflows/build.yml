@@ -23,18 +23,33 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Компилируем AppDelegate.swift с абсолютным путем
+      # 2. Отладка структуры папок + компиляция через find (находит файл с любым регистром)
       - name: Build Unsigned App with swiftc
         run: |
+          echo "=== 1. Где мы находимся ==="
+          pwd
+
+          echo "=== 2. Список файлов в корне ==="
+          ls -la
+
+          echo "=== 3. Ищем файл AppDelegate.swift по всей директории ==="
+          SWIFT_FILE=$(find . -iname "AppDelegate.swift" -type f | head -n 1)
+          echo "Найденный файл: '$SWIFT_FILE'"
+
+          if [ -z "$SWIFT_FILE" ]; then
+            echo "ОШИБКА: Файл AppDelegate.swift вообще не найден в репозитории!"
+            exit 1
+          fi
+
           mkdir -p Payload/HenryStickmin.app
 
-          # Компилируем arm64 бинарник, используя точный путь к файлу в репозитории
+          # Компилируем найденный файл
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
             -emit-executable \
             -o Payload/HenryStickmin.app/HenryStickmin \
-            "${{ github.workspace }}/HenryApp/AppDelegate.swift"
+            "$SWIFT_FILE"
 
           # Копируем веб-ассеты (index.html, ruffle.js, *.wasm, *.swf) внутрь .app
           cp -R WebAssets Payload/HenryStickmin.app/
