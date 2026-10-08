@@ -5,52 +5,40 @@ on:
 
 jobs:
   build-unsigned-ipa:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
-      - name: Code Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialize Java Environment
+      - name: Setup Java Environment
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # Шаг 1: Распаковка AIR SDK
       - name: Setup AIR SDK
         run: |
           mkdir -p ~/sdks/air
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          
           curl -sSL --fail "$BASE_URL/AIRSDK_MacOS.zip" -o ~/Downloads/AIRSDK_MacOS.zip
           unzip -q ~/Downloads/AIRSDK_MacOS.zip -d ~/sdks/air
-          
           xattr -r -d com.apple.quarantine ~/sdks/air || true
           chmod -R +x ~/sdks/air/bin
-          
           echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
           echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
 
-      # Шаг 2: Проверка ADT
-      - name: Verify ADT
-        run: |
-          adt -version
-
-      # Шаг 3: Скачивание SWF ассетов
       - name: Fetch SWF Assets
         run: |
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          
           curl -sSL --fail "$BASE_URL/Henry.swf" -o Henry.swf
           curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o HenryFtC.swf
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
 
-      # Шаг 4: Генерация PFX и сборка бандла
-      - name: Package Base IPA
+      # Сборка структуры бандла
+      - name: Build Base App Bundle
         run: |
           SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          
           adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
 
           adt -package \
@@ -63,11 +51,10 @@ jobs:
             -platformsdk "$SIM_SDK_PATH" \
             Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
 
-      # Шаг 5: Замена бинарника на ARM64 и Ad-Hoc подпись через codesign
-      - name: Patch to ARM64 and Sign
+      # Патч бинарника под arm64 и Ad-Hoc подпись через codesign/ditto
+      - name: Patch ARM64 Architecture and Ad-Hoc Sign
         run: |
           unzip -q HenryStickmin.ipa -d temp_extract
-          
           rm -rf Payload HenryStickmin.ipa
           mkdir -p Payload
           mv temp_extract/Payload/HenryStickmin.app Payload/
@@ -75,32 +62,28 @@ jobs:
 
           APP_DIR="Payload/HenryStickmin.app"
 
-          # Ищем бинарник CTAIRInterpreter в SDK без жесткой фильтрации
-          RUNNER_PATH=$(find "$AIR_HOME" -name "CTAIRInterpreter" | head -n 1)
-          
-          if [ -f "$RUNNER_PATH" ]; then
-            echo "Found AIR runner at: $RUNNER_PATH"
-            cp -f "$RUNNER_PATH" "$APP_DIR/HenryStickmin"
-          else
-            echo "Runner not found in SDK, using default executable inside .app"
+          # Ищем бинарник с arm64 архитектурой внутри AIR SDK
+          ARM64_BINARY=""
+          for b in $(find "$AIR_HOME" -name "CTAIRInterpreter" -o -name "Adobe AIR"); do
+            if file "$b" | grep -q "arm64"; then
+              ARM64_BINARY="$b"
+              break
+            fi
+          done
+
+          if [ -n "$ARM64_BINARY" ]; then
+            echo "Found valid ARM64 runner: $ARM64_BINARY"
+            cp -f "$ARM64_BINARY" "$APP_DIR/HenryStickmin"
           fi
 
           chmod +x "$APP_DIR/HenryStickmin"
 
-          # Ad-hoc подпись Apple через codesign
-          echo "=== Ad-hoc codesigning ==="
-          find "$APP_DIR" -name "*.dylib" -exec codesign --force --sign - --timestamp=none {} \; || true
-          codesign --force --sign - --timestamp=none "$APP_DIR"
+          # Подпись и архивация ровно по аналогии с маком в Catty/SourceEngine
+          codesign --force --sign - --timestamp=none "$APP_DIR" || true
+          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-scenes-unsigned.ipa
 
-          echo "=== Zipping IPA via ditto ==="
-          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin.ipa
-          
-          ls -lh HenryStickmin.ipa
-
-      # Шаг 6: Выгрузка IPA
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-unsigned-ipa
-          path: HenryStickmin.ipa
-          if-no-files-found: error
+          name: HenryStickmin-scenes-unsigned-ipa
+          path: HenryStickmin-scenes-unsigned.ipa
