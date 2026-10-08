@@ -58,7 +58,7 @@ jobs:
           }
           AS
           cat > build/extension.xml <<EXT
-          <extension xmlns="http://ns.adobe.com/air/extension/$AIRVER">
+          <extension xmlns="http://ns.adobe.com/air/extension/2.5">
           	<id>com.amanitadesign.steam.FRESteamWorks</id>
           	<versionNumber>0.7.0</versionNumber>
           	<platforms>
