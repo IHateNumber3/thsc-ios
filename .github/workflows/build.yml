@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF
+      # 1. Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           mkdir -p WebAssets
@@ -23,12 +23,11 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Гарантируем наличие файла исходника в папке HenryApp
+      # 2. Генерируем AppDelegate.swift
       - name: Ensure HenryApp Source Exists
         run: |
           mkdir -p HenryApp
-          if [ ! -f "HenryApp/AppDelegate.swift" ]; then
-            cat << 'EOF' > HenryApp/AppDelegate.swift
+          cat << 'EOF' > HenryApp/AppDelegate.swift
           import UIKit
           import WebKit
 
@@ -87,34 +86,32 @@ jobs:
               }
           }
           EOF
-          fi
 
-      # 3. Сборка через SwiftPM
-      - name: Build Executable via SwiftPM
-        run: |
-          swift build -c release \
-            --triple arm64-apple-ios14.0-sdk \
-            -Xswiftc -sdk -Xswiftc $(xcrun --sdk iphoneos --show-sdk-path)
-
-      # 4. Упаковка Payload и Info.plist
-      - name: Assemble Payload Bundle
+      # 3. Прямая компиляция через swiftc с указанием фреймворков
+      - name: Build Executable via swiftc
         run: |
           rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
-          # Копируем бинарник
-          BUILD_BIN=$(swift build -c release --triple arm64-apple-ios14.0-sdk --show-bin-path)/HenryStickmin
-          cp "$BUILD_BIN" Payload/HenryStickmin.app/HenryStickmin
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
 
-          # Копируем ресурсы bundle (автоматически созданные SwiftPM)
-          BUILD_DIR=$(swift build -c release --triple arm64-apple-ios14.0-sdk --show-bin-path)
-          cp -R "$BUILD_DIR/HenryStickmin_HenryStickmin.bundle" Payload/HenryStickmin.app/ 2>/dev/null || true
+          xcrun -sdk iphoneos swiftc \
+            -target arm64-apple-ios16.0 \
+            -sdk "$SDK_PATH" \
+            -parse-as-library \
+            -frame-path "$SDK_PATH/System/Library/Frameworks" \
+            -Xlinker -rpath -Xlinker /System/Library/Frameworks \
+            -Xlinker -rpath -Xlinker @executable_path/Frameworks \
+            -O \
+            -o Payload/HenryStickmin.app/HenryStickmin \
+            HenryApp/AppDelegate.swift
+
           cp -R WebAssets Payload/HenryStickmin.app/
 
           # Создаём валидный Info.plist
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
           <plist version="1.0">
           <dict>
               <key>CFBundleDevelopmentRegion</key>
@@ -138,7 +135,7 @@ jobs:
               <key>LSRequiresIPhoneOS</key>
               <true/>
               <key>MinimumOSVersion</key>
-              <string>14.0</string>
+              <string>16.0</string>
               <key>UIDeviceFamily</key>
               <array>
                   <integer>1</integer>
@@ -153,13 +150,13 @@ jobs:
           </dict>
           EOF
 
-      # 5. Подпись Ad-Hoc и упаковывание в IPA
+      # 4. Упаковка IPA
       - name: Package IPA
         run: |
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
           zip -r HenryStickmin-native.ipa Payload
 
-      # 6. Выгрузка артефакта
+      # 5. Выгрузка
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
