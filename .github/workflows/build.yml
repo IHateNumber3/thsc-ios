@@ -72,9 +72,11 @@ jobs:
             -source-path stub/src \
             -include-classes com.amanitadesign.steam.FRESteamWorks \
             -output build/stub.swc
+          mkdir -p build/swc && unzip -o build/stub.swc library.swf -d build/swc
           java -jar "$SDK/lib/adt.jar" -package -target ane \
             build/ext/com.amanitadesign.steam.FRESteamWorks.ane \
-            build/extension.xml -swc build/stub.swc -platform default
+            build/extension.xml -swc build/stub.swc \
+            -platform default -C build/swc library.swf
 
       - name: Assemble package folder
         run: |
