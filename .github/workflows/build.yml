@@ -127,8 +127,12 @@ jobs:
       - name: "Package IPA (interpreter, game loads sub-SWFs at runtime)"
         working-directory: build/pkg
         run: |
+          # the SDK zip may have lost exec bits on the iOS toolchain
+          find "$SDK/lib" "$SDK/bin" -type f \( -path '*/aot/*' -o -path '*/bin/*' \) -exec chmod +x {} + || true
+          xcodebuild -version
           java -Xmx4g -jar "$SDK/lib/adt.jar" -package \
             -target ipa-test-interpreter \
+            -platformsdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
             -storetype pkcs12 -keystore ../sign/dummy.p12 -storepass pass \
             -provisioning-profile ../sign/dummy.mobileprovision \
             ../../HenryStickmin.ipa application.xml \
