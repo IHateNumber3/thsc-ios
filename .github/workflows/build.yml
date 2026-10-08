@@ -1,4 +1,4 @@
-name: Build Henry Stickmin iOS App
+name: Build Henry Stickmin Native iOS
 
 on:
   workflow_dispatch:
@@ -13,7 +13,10 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # 1. Скачиваем SWF ассеты
       - name: Fetch SWF Assets
         run: |
           mkdir -p WebAssets
@@ -23,7 +26,7 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Генерируем код Swift
+      # 2. Создаем файл AppDelegate.swift
       - name: Ensure HenryApp Source Exists
         run: |
           mkdir -p HenryApp
@@ -88,79 +91,54 @@ jobs:
           }
           EOF
 
-      # 3. Компиляция и сборка структуры Payload
-      - name: Build Executable and Assets
+      # 3. Генерируем полноценный .xcodeproj проект
+      - name: Generate Xcode Project
         run: |
-          rm -rf Payload
-          mkdir -p Payload/HenryStickmin.app
-
-          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-
-          # Компилируем бинарник
-          xcrun -sdk iphoneos swiftc \
-            -target arm64-apple-ios16.0 \
-            -sdk "$SDK_PATH" \
-            -parse-as-library \
-            -O \
-            -o Payload/HenryStickmin.app/HenryStickmin \
-            HenryApp/AppDelegate.swift
-
-          # Копируем веб-ресурсы
-          cp -R WebAssets Payload/HenryStickmin.app/
-
-          # Полный валидный Info.plist с указанием главного запуска
-          cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>HenryStickmin</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.henry.stickmin</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>Henry Stickmin</string>
-              <key>CFBundleDisplayName</key>
-              <string>Henry Stickmin</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>MinimumOSVersion</key>
-              <string>16.0</string>
-              <key>UIDeviceFamily</key>
-              <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
-              </array>
-              <key>UIRequiresFullScreen</key>
-              <true/>
-              <key>UILaunchStoryboardName</key>
-              <string>LaunchScreen</string>
-              <key>UIApplicationSupportsIndirectInputEvents</key>
-              <true/>
-              <key>CFBundleSupportedPlatforms</key>
-              <array>
-                  <string>iPhoneOS</string>
-              </array>
-          </dict>
+          cat << 'EOF' > project.yml
+          name: HenryStickmin
+          options:
+            bundleIdPrefix: com.henry
+            deploymentTarget:
+              iOS: "15.0"
+          targets:
+            HenryStickmin:
+              type: application
+              platform: iOS
+              sources:
+                - HenryApp
+                - WebAssets
+              settings:
+                PRODUCT_BUNDLE_IDENTIFIER: com.henry.stickmin
+                GENERATE_INFOPLIST_FILE: YES
+                INFOPLIST_KEY_CFBundleDisplayName: "Henry Stickmin"
+                INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+                INFOPLIST_KEY_UIRequiresFullScreen: YES
+                CODE_SIGNING_ALLOWED: NO
+                CODE_SIGNING_REQUIRED: NO
           EOF
+          xcodegen generate
 
-      # 4. Упаковка IPA с Ad-Hoc подписью
-      - name: Package IPA
+      # 4. Сборка стандартным xcodebuild
+      - name: Build with xcodebuild
         run: |
-          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+          xcodebuild build \
+            -project HenryStickmin.xcodeproj \
+            -scheme HenryStickmin \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      # 5. Упаковка полноценного Payload в IPA
+      - name: Package Native IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
           zip -r HenryStickmin-native.ipa Payload
 
-      # 5. Выгрузка
+      # 6. Выгрузка готового IPA
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
