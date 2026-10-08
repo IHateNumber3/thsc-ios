@@ -55,15 +55,43 @@ jobs:
           sed "s/AIRVER/$AIRVER/" HenryStickmin-app.xml > build/pkg/application.xml
           ls -lh build/pkg
 
-      - name: Dummy signing identity
+      - name: Dummy signing identity + fake profile (KSign re-signs later)
         run: |
           mkdir -p build/sign
           java -jar "$SDK/lib/adt.jar" -certificate -cn Dummy -validityPeriod 25 \
             2048-RSA build/sign/dummy.p12 pass
-          # Provisioning profile: reuse whatever your existing Henry workflow uses.
-          echo "${{ secrets.PROFILE_B64 }}" | base64 --decode > build/sign/dummy.mobileprovision
+          openssl pkcs12 -in build/sign/dummy.p12 -passin pass:pass -nokeys -clcerts \
+            | openssl x509 -outform der -out build/sign/cert.der
+          python3 - <<'PY'
+          import plistlib, uuid, datetime
+          cert = open("build/sign/cert.der", "rb").read()
+          now = datetime.datetime.utcnow()
+          plistlib.dump({
+              "Name": "Dummy", "UUID": str(uuid.uuid4()),
+              "AppIDName": "Dummy", "TeamName": "Dummy",
+              "ApplicationIdentifierPrefix": ["DUMMY00000"],
+              "TeamIdentifier": ["DUMMY00000"],
+              "Platform": ["iOS"],
+              "CreationDate": now,
+              "ExpirationDate": now + datetime.timedelta(days=3650),
+              "DeveloperCertificates": [cert],
+              "Entitlements": {
+                  "application-identifier": "DUMMY00000.*",
+                  "get-task-allow": True,
+                  "com.apple.developer.team-identifier": "DUMMY00000",
+              },
+              "ProvisionsAllDevices": True,
+          }, open("build/sign/profile.plist", "wb"))
+          PY
+          # CMS-wrap the plist with the dummy cert/key
+          openssl pkcs12 -in build/sign/dummy.p12 -passin pass:pass -nocerts -nodes \
+            -out build/sign/key.pem
+          openssl x509 -inform der -in build/sign/cert.der -out build/sign/cert.pem
+          openssl smime -sign -nodetach -binary -outform der \
+            -in build/sign/profile.plist -signer build/sign/cert.pem \
+            -inkey build/sign/key.pem -out build/sign/dummy.mobileprovision
 
-      - name: Package IPA (interpreter: game loads sub-SWFs at runtime)
+      - name: "Package IPA (interpreter, game loads sub-SWFs at runtime)"
         working-directory: build/pkg
         run: |
           java -Xmx4g -jar "$SDK/lib/adt.jar" -package \
