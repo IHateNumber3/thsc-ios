@@ -26,11 +26,12 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Создаем файл AppDelegate.swift
+      # 2. Убеждаемся, что AppDelegate.swift на месте внутри HenryApp
       - name: Ensure HenryApp Source Exists
         run: |
           mkdir -p HenryApp
-          cat << 'EOF' > HenryApp/AppDelegate.swift
+          if [ ! -f "HenryApp/AppDelegate.swift" ]; then
+            cat << 'EOF' > HenryApp/AppDelegate.swift
           import UIKit
           import WebKit
 
@@ -90,8 +91,9 @@ jobs:
               }
           }
           EOF
+          fi
 
-      # 3. Генерируем полноценный .xcodeproj проект
+      # 3. Генерируем проект через XcodeGen с четким указанием папки HenryApp
       - name: Generate Xcode Project
         run: |
           cat << 'EOF' > project.yml
@@ -105,8 +107,9 @@ jobs:
               type: application
               platform: iOS
               sources:
-                - HenryApp
-                - WebAssets
+                - path: HenryApp
+              resources:
+                - path: WebAssets
               settings:
                 PRODUCT_BUNDLE_IDENTIFIER: com.henry.stickmin
                 GENERATE_INFOPLIST_FILE: YES
@@ -118,7 +121,7 @@ jobs:
           EOF
           xcodegen generate
 
-      # 4. Сборка стандартным xcodebuild
+      # 4. Сборка через xcodebuild
       - name: Build with xcodebuild
         run: |
           xcodebuild build \
@@ -131,14 +134,20 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      # 5. Упаковка полноценного Payload в IPA
+      # 5. Упаковка в правильный IPA с Payload
       - name: Package Native IPA
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
+          
+          # На всякий случай копируем WebAssets в ресурсы бандла, если xcodebuild их не подхватил автоматически
+          if [ -d "WebAssets" ]; then
+            cp -R WebAssets Payload/HenryStickmin.app/
+          fi
+          
           zip -r HenryStickmin-native.ipa Payload
 
-      # 6. Выгрузка готового IPA
+      # 6. Выгрузка артефакта
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
