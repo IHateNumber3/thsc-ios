@@ -71,6 +71,7 @@ jobs:
           "$SDK/bin/compc" +configname=air \
             -source-path stub/src \
             -include-classes com.amanitadesign.steam.FRESteamWorks \
+            -swf-version=32 \
             -output build/stub.swc
           mkdir -p build/swc && unzip -o build/stub.swc library.swf -d build/swc
           java -jar "$SDK/lib/adt.jar" -package -target ane \
