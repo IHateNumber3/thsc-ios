@@ -7,100 +7,28 @@ jobs:
   build-unsigned-ipa:
     runs-on: macos-14
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачивание SWF ассетов
-      - name: Fetch SWF Assets
-        run: |
-          mkdir -p Assets
-          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          curl -sSL --fail "$BASE_URL/Henry.swf" -o Assets/Henry.swf
-          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o Assets/HenryFtC.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o Assets/HenryCtM.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o Assets/HenryCtM2.swf
-
-      # 2. Скачивание актуального автономного движка Ruffle iOS WebKit
-      - name: Setup Ruffle Engine
+      # 1. Скачиваем SWF файлы из релизов прямо в папку WebAssets
+      - name: Fetch SWF Assets from Releases
         run: |
           mkdir -p WebAssets
-          curl -sSL "https://unpkg.com/@ruffle-rs/ruffle" -o ruffle.tar.gz || true
-          tar -xzf ruffle.tar.gz -C WebAssets/ || true
-          
-          # Создаем автономный index.html для запуска SWF
-          cat << 'EOF' > WebAssets/index.html
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-            <style>
-              body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; }
-              #player { width: 100%; height: 100%; display: block; }
-            </style>
-            <script src="ruffle.js"></script>
-          </head>
-          <body>
-            <div id="player"></div>
-            <script>
-              window.RufflePlayer = window.RufflePlayer || {};
-              window.addEventListener("load", (event) => {
-                  const ruffle = window.RufflePlayer.newest();
-                  const player = ruffle.createPlayer();
-                  const container = document.getElementById("player");
-                  container.appendChild(player);
-                  player.load("Henry.swf");
-              });
-            </script>
-          </body>
-          </html>
-          EOF
-          cp Assets/*.swf WebAssets/
+          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
+          curl -sSL --fail "$BASE_URL/Henry.swf" -o WebAssets/Henry.swf
+          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o WebAssets/HenryFtC.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 3. Генерация минимального Swift iOS приложения (без ADT!)
-      - name: Create Native Swift iOS Project
-        run: |
-          mkdir -p HenryApp
-          cat << 'EOF' > HenryApp/AppDelegate.swift
-          import UIKit
-          import WebKit
-
-          @main
-          class AppDelegate: UIResponder, UIApplicationDelegate {
-              var window: UIWindow?
-
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  window = UIWindow(frame: UIScreen.main.bounds)
-                  let vc = UIViewController()
-                  let config = WKWebViewConfiguration()
-                  config.mediaTypesRequiringUserActionForPlayback = []
-                  config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
-                  
-                  let webView = WKWebView(frame: vc.view.bounds, configuration: config)
-                  webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                  webView.scrollView.isScrollEnabled = false
-                  vc.view.addSubview(webView)
-                  
-                  if let htmlPath = Bundle.main.path(forResource: "index", ofType: "html", inDirectory: "WebAssets") {
-                      let url = URL(fileURLWithPath: htmlPath)
-                      webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-                  }
-                  
-                  window?.rootViewController = vc
-                  window?.makeKeyAndVisible()
-                  return true
-              }
-          }
-          EOF
-
-      # 4. Нативная компиляция через swiftc (без ADT и xcodebuild-мусора!)
+      # 2. Нативная компиляция Swift из HenryApp/AppDelegate.swift и сборка бандла
       - name: Build Unsigned App with swiftc
         run: |
           mkdir -p Payload/HenryStickmin.app
           
-          # Флаг -parse-as-library решает ошибку с @main
+          # Компиляция чистого arm64 бинарника
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
@@ -108,9 +36,10 @@ jobs:
             -o Payload/HenryStickmin.app/HenryStickmin \
             HenryApp/AppDelegate.swift
 
-          # Копируем веб-ассеты и создаем правильный Info.plist
+          # Копируем веб-ассеты (index.html, ruffle.js, *.wasm, *.swf) внутрь .app
           cp -R WebAssets Payload/HenryStickmin.app/
           
+          # Генерируем Info.plist
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -134,12 +63,13 @@ jobs:
           </plist>
           EOF
 
-      # 5. Ad-Hoc подпись и ditto упаковка
+      # 3. Подпись псевдо-сертификатом (Ad-Hoc) и упаковка в .ipa
       - name: Package IPA
         run: |
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
           ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-native-unsigned.ipa
 
+      # 4. Выгрузка готового IPA в артефакты GitHub Actions
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
