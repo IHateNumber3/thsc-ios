@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+    }
+    #player {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+  <script src="ruffle.js"></script>
+</head>
+<body>
+  <div id="player"></div>
+  <script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+        "autoplay": "on",
+        "unmuteOverlay": "hidden",
+        "letterbox": "on",
+        "warnOnUnsupportedContent": false
+    };
+
+    window.addEventListener("DOMContentLoaded", () => {
+        const ruffle = window.RufflePlayer.newest();
+        const player = ruffle.createPlayer();
+        const container = document.getElementById("player");
+        container.appendChild(player);
+
+        // Загружаем главный SWF файл Henry.swf из подтянытых ассетов
+        player.load({
+            url: "Henry.swf",
+            allowScriptAccess: true
+        }).catch((err) => {
+            console.error("Ruffle Error:", err);
+        });
+    });
+  </script>
+</body>
+</html>
