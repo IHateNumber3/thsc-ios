@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF файлы из релизов прямо в папку WebAssets
+      # 1. Скачиваем SWF
       - name: Fetch SWF Assets from Releases
         run: |
           mkdir -p WebAssets
@@ -23,69 +23,76 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Отладка структуры папок + компиляция через find (находит файл с любым регистром)
-      - name: Build Unsigned App with swiftc
+      # 2. Компиляция и сборка правильной структуры .app
+      - name: Build Native App Bundle
         run: |
-          echo "=== 1. Где мы находимся ==="
-          pwd
-
-          echo "=== 2. Список файлов в корне ==="
-          ls -la
-
-          echo "=== 3. Ищем файл AppDelegate.swift по всей директории ==="
-          SWIFT_FILE=$(find . -iname "AppDelegate.swift" -type f | head -n 1)
-          echo "Найденный файл: '$SWIFT_FILE'"
-
-          if [ -z "$SWIFT_FILE" ]; then
-            echo "ОШИБКА: Файл AppDelegate.swift вообще не найден в репозитории!"
-            exit 1
-          fi
-
+          rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
-          # Компилируем найденный файл
+          # Компилируем арм64 бинарник
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
             -emit-executable \
             -o Payload/HenryStickmin.app/HenryStickmin \
-            "$SWIFT_FILE"
+            "${{ github.workspace }}/HenryApp/AppDelegate.swift"
 
-          # Копируем веб-ассеты (index.html, ruffle.js, *.wasm, *.swf) внутрь .app
+          # Копируем веб-ассеты
           cp -R WebAssets Payload/HenryStickmin.app/
-          
-          # Info.plist
+
+          # Создаём валидный iOS Info.plist
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
               <key>CFBundleExecutable</key>
               <string>HenryStickmin</string>
               <key>CFBundleIdentifier</key>
               <string>com.henry.stickmin</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
               <key>CFBundleName</key>
+              <string>Henry Stickmin</string>
+              <key>CFBundleDisplayName</key>
               <string>Henry Stickmin</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
+              <key>MinimumOSVersion</key>
+              <string>14.0</string>
+              <key>UIDeviceFamily</key>
+              <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+              </array>
               <key>UIRequiresFullScreen</key>
               <true/>
+              <key>CFBundleSupportedPlatforms</key>
+              <array>
+                  <string>iPhoneOS</string>
+              </array>
           </dict>
+          </plist>
           EOF
 
-      # 3. Подпись Ad-Hoc и упаковка IPA
-      - name: Package IPA
+      # 3. Упаковка IPA через zip
+      - name: Package Valid IPA
         run: |
-          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
-          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-native-unsigned.ipa
+          cd Payload
+          zip -r ../HenryStickmin-native.ipa HenryStickmin.app
+          cd ..
 
-      # 4. Выгрузка готового IPA в артефакты
+      # 4. Выгрузка артефакта
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-native-unsigned-ipa
-          path: HenryStickmin-native-unsigned.ipa
+          name: HenryStickmin-native-ipa
+          path: HenryStickmin-native.ipa
