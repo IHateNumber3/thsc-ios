@@ -16,26 +16,91 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Fetch SWF Assets
+      - name: Download release Files
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          for f in Henry HenryFtC HenryCtM HenryCtM2; do
-            curl -sSL --fail "$BASE_URL/$f.swf" -o "WebAssets/$f.swf"
-          done
+          gh release download Files --repo IHateNumber3/thsc-ios --dir release_files
+          ls -la release_files
 
-      - name: Fix AppDelegate filename
+      - name: Write AppDelegate
         run: |
-          for f in HenryApp/AppDelegate.swift*; do
-            [ "$f" != "HenryApp/AppDelegate.swift" ] && mv "$f" HenryApp/AppDelegate.swift
-          done
-          ls -la HenryApp WebAssets
+          mkdir -p Sources
+          cat << 'EOF' > Sources/AppDelegate.swift
+          import UIKit
+          import WebKit
 
-      - name: Stage HenryApp folder without swift
-        run: |
-          mkdir -p Staging/HenryApp
-          rsync -a --exclude='*.swift*' HenryApp/ Staging/HenryApp/
-          touch Staging/HenryApp/.keep
-          ls -la Staging/HenryApp
+          class AppSchemeHandler: NSObject, WKURLSchemeHandler {
+              func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+                  guard let url = urlSchemeTask.request.url else { return }
+                  var path = url.path
+                  if path == "/" || path.isEmpty { path = "/index.html" }
+
+                  let root = Bundle.main.bundlePath
+                  let fm = FileManager.default
+                  let candidates = [root + "/WebAssets" + path, root + "/HenryApp" + path, root + path]
+
+                  guard let filePath = candidates.first(where: { fm.fileExists(atPath: $0) }),
+                        let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
+                      urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+                      return
+                  }
+
+                  let mime: String
+                  switch (path as NSString).pathExtension.lowercased() {
+                  case "html": mime = "text/html"
+                  case "js": mime = "text/javascript"
+                  case "wasm": mime = "application/wasm"
+                  case "swf": mime = "application/x-shockwave-flash"
+                  case "json": mime = "application/json"
+                  case "txt": mime = "text/plain"
+                  default: mime = "application/octet-stream"
+                  }
+
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [
+                      "Content-Type": mime,
+                      "Content-Length": "\(data.count)",
+                      "Access-Control-Allow-Origin": "*"
+                  ])!
+                  urlSchemeTask.didReceive(response)
+                  urlSchemeTask.didReceive(data)
+                  urlSchemeTask.didFinish()
+              }
+
+              func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+          }
+
+          @main
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  window = UIWindow(frame: UIScreen.main.bounds)
+                  let vc = UIViewController()
+                  vc.view.backgroundColor = .black
+
+                  let config = WKWebViewConfiguration()
+                  config.setURLSchemeHandler(AppSchemeHandler(), forURLScheme: "app")
+                  config.mediaTypesRequiringUserActionForPlayback = []
+                  config.allowsInlineMediaPlayback = true
+
+                  let webView = WKWebView(frame: vc.view.bounds, configuration: config)
+                  webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                  webView.scrollView.isScrollEnabled = false
+                  webView.isOpaque = false
+                  webView.backgroundColor = .black
+                  vc.view.addSubview(webView)
+
+                  if let url = URL(string: "app://henry/index.html") {
+                      webView.load(URLRequest(url: url))
+                  }
+
+                  window?.rootViewController = vc
+                  window?.makeKeyAndVisible()
+                  return true
+              }
+          }
+          EOF
 
       - name: Generate Xcode Project
         run: |
@@ -50,18 +115,7 @@ jobs:
               type: application
               platform: iOS
               sources:
-                - path: HenryApp/AppDelegate.swift
-              resources:
-                - path: Staging/HenryApp
-                  type: folder
-                - path: WebAssets
-                  type: folder
-                - path: btb_english.txt
-                - path: ctm_english.txt
-                - path: etp_english.txt
-                - path: ftc_english.txt
-                - path: ita_english.txt
-                - path: std_english.txt
+                - path: Sources/AppDelegate.swift
               settings:
                 PRODUCT_BUNDLE_IDENTIFIER: com.henry.stickmin
                 GENERATE_INFOPLIST_FILE: YES
@@ -91,7 +145,39 @@ jobs:
         run: |
           rm -rf Payload && mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
-          ls -la Payload/HenryStickmin.app
+          APP=Payload/HenryStickmin.app
+
+          # папки
+          mkdir -p "$APP/HenryApp"
+          rsync -a --exclude='*.swift*' HenryApp/ "$APP/HenryApp/"
+          cp -R WebAssets "$APP/WebAssets"
+
+          # все txt из репо
+          cp ./*.txt "$APP/"
+
+          # всё из релиза Files, кроме SDK
+          for f in release_files/*; do
+            case "$f" in
+              *.zip|*.dmg|*.tbz2|*.tar.bz2|*.tar.gz|*[Ss][Dd][Kk]*) echo "skip $f" ;;
+              *) cp "$f" "$APP/" ;;
+            esac
+          done
+
+          ls -la "$APP"
+
+          # проверка: все swf и все txt на месте
+          FAIL=0
+          for f in release_files/*.swf; do
+            [ -f "$APP/$(basename "$f")" ] || { echo "MISSING $(basename "$f")"; FAIL=1; }
+          done
+          for f in ./*.txt release_files/*.txt; do
+            [ -f "$f" ] || continue
+            [ -f "$APP/$(basename "$f")" ] || { echo "MISSING $(basename "$f")"; FAIL=1; }
+          done
+          [ -f "$APP/WebAssets/index.html" ] || { echo "MISSING WebAssets/index.html"; FAIL=1; }
+          [ -d "$APP/HenryApp" ] || { echo "MISSING HenryApp"; FAIL=1; }
+          [ "$FAIL" = 0 ] || exit 1
+
           zip -qr HenryStickmin-native.ipa Payload
 
       - name: Upload IPA Artifact
