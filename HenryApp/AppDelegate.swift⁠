@@ -1,0 +1,57 @@
+import UIKit
+import WebKit
+
+class AppSchemeHandler: NSObject, WKURLSchemeHandler {
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url else { return }
+        
+        var path = url.path
+        if path == "/" || path.isEmpty { path = "/index.html" }
+        
+        guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else { return }
+        let filePath = bundlePath + path
+        
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
+            let mimeType: String
+            if path.hasSuffix(".html") { mimeType = "text/html" }
+            else if path.hasSuffix(".js") { mimeType = "text/javascript" }
+            else if path.hasSuffix(".wasm") { mimeType = "application/wasm" }
+            else if path.hasSuffix(".swf") { mimeType = "application/x-shockwave-flash" }
+            else { mimeType = "application/octet-stream" }
+            
+            let response = URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: "utf-8")
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+        }
+    }
+    
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+}
+
+@main
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        window = UIWindow(frame: UIScreen.main.bounds)
+        let vc = UIViewController()
+        
+        let config = WKWebViewConfiguration()
+        let handler = AppSchemeHandler()
+        config.setURLSchemeHandler(handler, forURLScheme: "app")
+        
+        let webView = WKWebView(frame: vc.view.bounds, configuration: config)
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.scrollView.isScrollEnabled = false
+        vc.view.addSubview(webView)
+        
+        if let url = URL(string: "app://henry/index.html") {
+            webView.load(URLRequest(url: url))
+        }
+        
+        window?.rootViewController = vc
+        window?.makeKeyAndVisible()
+        return true
+    }
+}
