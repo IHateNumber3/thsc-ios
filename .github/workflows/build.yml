@@ -1,187 +1,81 @@
-name: Build Henry Stickmin Native iOS
+name: Build Henry IPA (AIR)
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  build-ipa:
+  build:
     runs-on: macos-14
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Select Xcode Version
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Download release Files
+      - name: Download SWFs and AIR SDK from release "Files"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download Files --repo IHateNumber3/thsc-ios --dir release_files
-          ls -la release_files
+          mkdir -p dl
+          gh release download Files --repo "${{ github.repository }}" --dir dl \
+            -p 'AIRSDK_MacOS.zip' -p '*.swf'
+          ls -lh dl
 
-      - name: Write AppDelegate
+      - name: Unpack AIR SDK
         run: |
-          mkdir -p Sources
-          cat << 'EOF' > Sources/AppDelegate.swift
-          import UIKit
-          import WebKit
+          mkdir -p "$HOME/airsdk"
+          unzip -q dl/AIRSDK_MacOS.zip -d "$HOME/airsdk"
+          ADT=$(find "$HOME/airsdk" -name adt.jar -path '*/lib/*' | head -1)
+          SDK=$(dirname "$(dirname "$ADT")")
+          chmod -R +x "$SDK/bin" || true
+          AIRVER=$(grep -m1 -o '<version>[0-9]*\.[0-9]*' "$SDK/air-sdk-description.xml" | sed 's/<version>//')
+          echo "SDK=$SDK" >> "$GITHUB_ENV"
+          echo "AIRVER=$AIRVER" >> "$GITHUB_ENV"
+          echo "SDK=$SDK AIRVER=$AIRVER"
 
-          class AppSchemeHandler: NSObject, WKURLSchemeHandler {
-              func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-                  guard let url = urlSchemeTask.request.url else { return }
-                  var path = url.path
-                  if path == "/" || path.isEmpty { path = "/index.html" }
-
-                  let root = Bundle.main.bundlePath
-                  let fm = FileManager.default
-                  let candidates = [root + "/WebAssets" + path, root + "/HenryApp" + path, root + path]
-
-                  guard let filePath = candidates.first(where: { fm.fileExists(atPath: $0) }),
-                        let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
-                      urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
-                      return
-                  }
-
-                  let mime: String
-                  switch (path as NSString).pathExtension.lowercased() {
-                  case "html": mime = "text/html"
-                  case "js": mime = "text/javascript"
-                  case "wasm": mime = "application/wasm"
-                  case "swf": mime = "application/x-shockwave-flash"
-                  case "json": mime = "application/json"
-                  case "txt": mime = "text/plain"
-                  default: mime = "application/octet-stream"
-                  }
-
-                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [
-                      "Content-Type": mime,
-                      "Content-Length": "\(data.count)",
-                      "Access-Control-Allow-Origin": "*"
-                  ])!
-                  urlSchemeTask.didReceive(response)
-                  urlSchemeTask.didReceive(data)
-                  urlSchemeTask.didFinish()
-              }
-
-              func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
-          }
-
-          @main
-          class AppDelegate: UIResponder, UIApplicationDelegate {
-              var window: UIWindow?
-
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  window = UIWindow(frame: UIScreen.main.bounds)
-                  let vc = UIViewController()
-                  vc.view.backgroundColor = .black
-
-                  let config = WKWebViewConfiguration()
-                  config.setURLSchemeHandler(AppSchemeHandler(), forURLScheme: "app")
-                  config.mediaTypesRequiringUserActionForPlayback = []
-                  config.allowsInlineMediaPlayback = true
-
-                  let webView = WKWebView(frame: vc.view.bounds, configuration: config)
-                  webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                  webView.scrollView.isScrollEnabled = false
-                  webView.isOpaque = false
-                  webView.backgroundColor = .black
-                  vc.view.addSubview(webView)
-
-                  if let url = URL(string: "app://henry/index.html") {
-                      webView.load(URLRequest(url: url))
-                  }
-
-                  window?.rootViewController = vc
-                  window?.makeKeyAndVisible()
-                  return true
-              }
-          }
-          EOF
-
-      - name: Generate Xcode Project
+      - name: Build stub ANE (replaces Windows-only FRESteamWorks)
         run: |
-          cat << 'EOF' > project.yml
-          name: HenryStickmin
-          options:
-            bundleIdPrefix: com.henry
-            deploymentTarget:
-              iOS: "15.0"
-          targets:
-            HenryStickmin:
-              type: application
-              platform: iOS
-              sources:
-                - path: Sources/AppDelegate.swift
-              settings:
-                PRODUCT_BUNDLE_IDENTIFIER: com.henry.stickmin
-                GENERATE_INFOPLIST_FILE: YES
-                INFOPLIST_KEY_CFBundleDisplayName: "Henry Stickmin"
-                INFOPLIST_KEY_LSRequiresIPhoneOS: YES
-                INFOPLIST_KEY_UIRequiresFullScreen: YES
-                INFOPLIST_KEY_UILaunchScreen_Generation: YES
-                INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-                CODE_SIGNING_ALLOWED: NO
-                CODE_SIGNING_REQUIRED: NO
-          EOF
-          xcodegen generate
+          mkdir -p build/ext
+          "$SDK/bin/compc" +configname=air \
+            -source-path stub/src \
+            -include-classes com.amanitadesign.steam.FRESteamWorks \
+            -output build/stub.swc
+          sed "s/AIRVER/$AIRVER/" stub/extension.xml > build/extension.xml
+          java -jar "$SDK/lib/adt.jar" -package -target ane \
+            build/ext/com.amanitadesign.steam.FRESteamWorks.ane \
+            build/extension.xml -swc build/stub.swc -platform default
 
-      - name: Build with xcodebuild
+      - name: Assemble package folder
         run: |
-          xcodebuild build \
-            -project HenryStickmin.xcodeproj \
-            -scheme HenryStickmin \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          mkdir -p build/pkg
+          cp dl/*.swf build/pkg/
+          cp -R icons build/pkg/icons
+          cp ./*_english.txt build/pkg/
+          sed "s/AIRVER/$AIRVER/" HenryStickmin-app.xml > build/pkg/application.xml
+          ls -lh build/pkg
 
-      - name: Package Native IPA
+      - name: Dummy signing identity
         run: |
-          rm -rf Payload && mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
-          APP=Payload/HenryStickmin.app
+          mkdir -p build/sign
+          java -jar "$SDK/lib/adt.jar" -certificate -cn Dummy -validityPeriod 25 \
+            2048-RSA build/sign/dummy.p12 pass
+          # Provisioning profile: reuse whatever your existing Henry workflow uses.
+          echo "${{ secrets.PROFILE_B64 }}" | base64 --decode > build/sign/dummy.mobileprovision
 
-          # папки
-          mkdir -p "$APP/HenryApp"
-          rsync -a --exclude='*.swift*' HenryApp/ "$APP/HenryApp/"
-          cp -R WebAssets "$APP/WebAssets"
+      - name: Package IPA (interpreter: game loads sub-SWFs at runtime)
+        working-directory: build/pkg
+        run: |
+          java -Xmx4g -jar "$SDK/lib/adt.jar" -package \
+            -target ipa-test-interpreter \
+            -storetype pkcs12 -keystore ../sign/dummy.p12 -storepass pass \
+            -provisioning-profile ../sign/dummy.mobileprovision \
+            ../../HenryStickmin.ipa application.xml \
+            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf \
+            icons *_english.txt \
+            -extdir ../ext
 
-          # все txt из репо
-          cp ./*.txt "$APP/"
-
-          # всё из релиза Files, кроме SDK
-          for f in release_files/*; do
-            case "$f" in
-              *.zip|*.dmg|*.tbz2|*.tar.bz2|*.tar.gz|*[Ss][Dd][Kk]*) echo "skip $f" ;;
-              *) cp "$f" "$APP/" ;;
-            esac
-          done
-
-          ls -la "$APP"
-
-          # проверка: все swf и все txt на месте
-          FAIL=0
-          for f in release_files/*.swf; do
-            [ -f "$APP/$(basename "$f")" ] || { echo "MISSING $(basename "$f")"; FAIL=1; }
-          done
-          for f in ./*.txt release_files/*.txt; do
-            [ -f "$f" ] || continue
-            [ -f "$APP/$(basename "$f")" ] || { echo "MISSING $(basename "$f")"; FAIL=1; }
-          done
-          [ -f "$APP/WebAssets/index.html" ] || { echo "MISSING WebAssets/index.html"; FAIL=1; }
-          [ -d "$APP/HenryApp" ] || { echo "MISSING HenryApp"; FAIL=1; }
-          [ "$FAIL" = 0 ] || exit 1
-
-          zip -qr HenryStickmin-native.ipa Payload
-
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-native-ipa
-          path: HenryStickmin-native.ipa
+          name: HenryStickmin-ipa
+          path: HenryStickmin.ipa
