@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF ассеты из релизов
+      # 1. Скачиваем SWF
       - name: Fetch SWF Assets
         run: |
           mkdir -p WebAssets
@@ -23,24 +23,92 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Собираем исполняемый файл через SwiftPM под ARM64 (iOS Device)
+      # 2. Гарантируем наличие файла исходника в папке HenryApp
+      - name: Ensure HenryApp Source Exists
+        run: |
+          mkdir -p HenryApp
+          if [ ! -f "HenryApp/AppDelegate.swift" ]; then
+            cat << 'EOF' > HenryApp/AppDelegate.swift
+          import UIKit
+          import WebKit
+
+          class AppSchemeHandler: NSObject, WKURLSchemeHandler {
+              func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+                  guard let url = urlSchemeTask.request.url else { return }
+                  
+                  var path = url.path
+                  if path == "/" || path.isEmpty { path = "/index.html" }
+                  
+                  guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else { return }
+                  let filePath = bundlePath + path
+                  
+                  if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
+                      let mimeType: String
+                      if path.hasSuffix(".html") { mimeType = "text/html" }
+                      else if path.hasSuffix(".js") { mimeType = "text/javascript" }
+                      else if path.hasSuffix(".wasm") { mimeType = "application/wasm" }
+                      else if path.hasSuffix(".swf") { mimeType = "application/x-shockwave-flash" }
+                      else { mimeType = "application/octet-stream" }
+                      
+                      let response = URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: "utf-8")
+                      urlSchemeTask.didReceive(response)
+                      urlSchemeTask.didReceive(data)
+                      urlSchemeTask.didFinish()
+                  }
+              }
+              
+              func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+          }
+
+          @main
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  window = UIWindow(frame: UIScreen.main.bounds)
+                  let vc = UIViewController()
+                  
+                  let config = WKWebViewConfiguration()
+                  let handler = AppSchemeHandler()
+                  config.setURLSchemeHandler(handler, forURLScheme: "app")
+                  
+                  let webView = WKWebView(frame: vc.view.bounds, configuration: config)
+                  webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                  webView.scrollView.isScrollEnabled = false
+                  vc.view.addSubview(webView)
+                  
+                  if let url = URL(string: "app://henry/index.html") {
+                      webView.load(URLRequest(url: url))
+                  }
+                  
+                  window?.rootViewController = vc
+                  window?.makeKeyAndVisible()
+                  return true
+              }
+          }
+          EOF
+          fi
+
+      # 3. Сборка через SwiftPM
       - name: Build Executable via SwiftPM
         run: |
           swift build -c release \
             --triple arm64-apple-ios14.0-sdk \
             -Xswiftc -sdk -Xswiftc $(xcrun --sdk iphoneos --show-sdk-path)
 
-      # 3. Формируем легитимный .app бандл и Payload
+      # 4. Упаковка Payload и Info.plist
       - name: Assemble Payload Bundle
         run: |
-          rm -rf Payload HenryStickmin.app
+          rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
-          # Копируем скомпилированный бинарник
+          # Копируем бинарник
           BUILD_BIN=$(swift build -c release --triple arm64-apple-ios14.0-sdk --show-bin-path)/HenryStickmin
           cp "$BUILD_BIN" Payload/HenryStickmin.app/HenryStickmin
 
-          # Копируем ассеты
+          # Копируем ресурсы bundle (автоматически созданные SwiftPM)
+          BUILD_DIR=$(swift build -c release --triple arm64-apple-ios14.0-sdk --show-bin-path)
+          cp -R "$BUILD_DIR/HenryStickmin_HenryStickmin.bundle" Payload/HenryStickmin.app/ 2>/dev/null || true
           cp -R WebAssets Payload/HenryStickmin.app/
 
           # Создаём валидный Info.plist
@@ -85,13 +153,13 @@ jobs:
           </dict>
           EOF
 
-      # 4. Подпись Ad-Hoc и упаковывание в IPA
+      # 5. Подпись Ad-Hoc и упаковывание в IPA
       - name: Package IPA
         run: |
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
           zip -r HenryStickmin-native.ipa Payload
 
-      # 5. Выгрузка артефакта
+      # 6. Выгрузка артефакта
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
