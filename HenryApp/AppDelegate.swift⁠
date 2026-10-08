@@ -8,10 +8,15 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         var path = url.path
         if path == "/" || path.isEmpty { path = "/index.html" }
         
-        guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else { return }
+        guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else {
+            urlSchemeTask.didFailWithError(NSError(domain: "AppError", code: 404, userInfo: [NSLocalizedDescriptionKey: "WebAssets bundle not found"]))
+            return
+        }
+        
         let filePath = bundlePath + path
         
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
+        if FileManager.default.fileExists(atPath: filePath),
+           let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
             let mimeType: String
             if path.hasSuffix(".html") { mimeType = "text/html" }
             else if path.hasSuffix(".js") { mimeType = "text/javascript" }
@@ -23,15 +28,32 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
             urlSchemeTask.didReceive(response)
             urlSchemeTask.didReceive(data)
             urlSchemeTask.didFinish()
+        } else {
+            print("File not found or unreadable: \(filePath)")
+            let error = NSError(domain: "AppError", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found: \(path)"])
+            urlSchemeTask.didFailWithError(error)
         }
     }
     
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 }
 
+class WebNavigationDelegate: NSObject, WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        print("Navigation failed: \(error.localizedDescription)")
+    }
+    
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        print("CRITICAL: WebView process terminated (likely OOM / Memory limit exceeded)!")
+        // Автоматически перезагружаем страницу при падении из-за памяти
+        webView.reload()
+    }
+}
+
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    let webDelegate = WebNavigationDelegate() // Удерживаем делегат в памяти
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
@@ -44,6 +66,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let webView = WKWebView(frame: vc.view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.scrollView.isScrollEnabled = false
+        webView.navigationDelegate = webDelegate // Привязываем делегат
+        
         vc.view.addSubview(webView)
         
         if let url = URL(string: "app://henry/index.html") {
@@ -55,4 +79,3 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 }
-
