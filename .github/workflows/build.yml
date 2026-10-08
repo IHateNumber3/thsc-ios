@@ -1,4 +1,4 @@
-name: Super Henry Port iOS
+name: Build Henry Stickmin Native iOS
 
 on:
   workflow_dispatch:
@@ -10,80 +10,137 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java Environment
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      - name: Setup AIR SDK
-        run: |
-          mkdir -p ~/sdks/air
-          BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          curl -sSL --fail "$BASE_URL/AIRSDK_MacOS.zip" -o ~/Downloads/AIRSDK_MacOS.zip
-          unzip -q ~/Downloads/AIRSDK_MacOS.zip -d ~/sdks/air
-          xattr -r -d com.apple.quarantine ~/sdks/air || true
-          chmod -R +x ~/sdks/air/bin
-          echo "AIR_HOME=$HOME/sdks/air" >> $GITHUB_ENV
-          echo "$HOME/sdks/air/bin" >> $GITHUB_PATH
-
+      # 1. Скачивание SWF ассетов
       - name: Fetch SWF Assets
         run: |
+          mkdir -p Assets
           BASE_URL="https://github.com/IHateNumber3/thsc-ios/releases/download/Files"
-          curl -sSL --fail "$BASE_URL/Henry.swf" -o Henry.swf
-          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o HenryFtC.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o HenryCtM.swf
-          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o HenryCtM2.swf
+          curl -sSL --fail "$BASE_URL/Henry.swf" -o Assets/Henry.swf
+          curl -sSL --fail "$BASE_URL/HenryFtC.swf" -o Assets/HenryFtC.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o Assets/HenryCtM.swf
+          curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o Assets/HenryCtM2.swf
 
-      # Сборка структуры бандла
-      - name: Build Base App Bundle
+      # 2. Скачивание актуального автономного движка Ruffle iOS WebKit
+      - name: Setup Ruffle Engine
         run: |
-          SIM_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          adt -certificate -cn DummyCert 2048-RSA dummy.pfx certpassword
+          mkdir -p WebAssets
+          curl -sSL "https://unpkg.com/@ruffle-rs/ruffle" -o ruffle.tar.gz || true
+          tar -xzf ruffle.tar.gz -C WebAssets/ || true
+          
+          # Создаем автономный index.html для запуска SWF
+          cat << 'EOF' > WebAssets/index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <style>
+              body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; }
+              #player { width: 100%; height: 100%; display: block; }
+            </style>
+            <script src="ruffle.js"></script>
+          </head>
+          <body>
+            <div id="player"></div>
+            <script>
+              window.RufflePlayer = window.RufflePlayer || {};
+              window.addEventListener("load", (event) => {
+                  const ruffle = window.RufflePlayer.newest();
+                  const player = ruffle.createPlayer();
+                  const container = document.getElementById("player");
+                  container.appendChild(player);
+                  player.load("Henry.swf");
+              });
+            </script>
+          </body>
+          </html>
+          EOF
+          cp Assets/*.swf WebAssets/
 
-          adt -package \
-            -target ipa-test-interpreter-simulator \
-            -storetype pkcs12 \
-            -keystore dummy.pfx \
-            -storepass certpassword \
-            HenryStickmin.ipa \
-            HenryStickmin-app.xml \
-            -platformsdk "$SIM_SDK_PATH" \
-            Henry.swf HenryFtC.swf HenryCtM.swf HenryCtM2.swf *.txt
-
-      # Патч бинарника под arm64 и Ad-Hoc подпись через codesign/ditto
-      - name: Patch ARM64 Architecture and Ad-Hoc Sign
+      # 3. Генерация минимального Swift iOS приложения (без ADT!)
+      - name: Create Native Swift iOS Project
         run: |
-          unzip -q HenryStickmin.ipa -d temp_extract
-          rm -rf Payload HenryStickmin.ipa
-          mkdir -p Payload
-          mv temp_extract/Payload/HenryStickmin.app Payload/
-          rm -rf temp_extract
+          mkdir -p HenryApp
+          cat << 'EOF' > HenryApp/AppDelegate.swift
+          import UIKit
+          import WebKit
 
-          APP_DIR="Payload/HenryStickmin.app"
+          @main
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
 
-          # Ищем бинарник с arm64 архитектурой внутри AIR SDK
-          ARM64_BINARY=""
-          for b in $(find "$AIR_HOME" -name "CTAIRInterpreter" -o -name "Adobe AIR"); do
-            if file "$b" | grep -q "arm64"; then
-              ARM64_BINARY="$b"
-              break
-            fi
-          done
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  window = UIWindow(frame: UIScreen.main.bounds)
+                  let vc = UIViewController()
+                  let config = WKWebViewConfiguration()
+                  config.mediaTypesRequiringUserActionForPlayback = []
+                  config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
+                  
+                  let webView = WKWebView(frame: vc.view.bounds, configuration: config)
+                  webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                  webView.scrollView.isScrollEnabled = false
+                  vc.view.addSubview(webView)
+                  
+                  if let htmlPath = Bundle.main.path(forResource: "index", ofType: "html", inDirectory: "WebAssets") {
+                      let url = URL(fileURLWithPath: htmlPath)
+                      webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+                  }
+                  
+                  window?.rootViewController = vc
+                  window?.makeKeyAndVisible()
+                  return true
+              }
+          }
+          EOF
 
-          if [ -n "$ARM64_BINARY" ]; then
-            echo "Found valid ARM64 runner: $ARM64_BINARY"
-            cp -f "$ARM64_BINARY" "$APP_DIR/HenryStickmin"
-          fi
+      # 4. Нативная компиляция через xcodebuild (как в Catty!)
+      - name: Build Unsigned App with xcodebuild
+        run: |
+          mkdir -p Payload/HenryStickmin.app
+          
+          # Компилируем чистый ARM64 Swift бинарник под iphoneos
+          xcrun -sdk iphoneos swiftc \
+            -target arm64-apple-ios14.0 \
+            -emit-executable \
+            -o Payload/HenryStickmin.app/HenryStickmin \
+            HenryApp/AppDelegate.swift
 
-          chmod +x "$APP_DIR/HenryStickmin"
+          # Копируем ресурсы и создаем Info.plist
+          cp -R WebAssets Payload/HenryStickmin.app/
+          
+          cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>HenryStickmin</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.henry.stickmin</string>
+              <key>CFBundleName</key>
+              <string>Henry Stickmin</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UIRequiresFullScreen</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
 
-          # Подпись и архивация ровно по аналогии с маком в Catty/SourceEngine
-          codesign --force --sign - --timestamp=none "$APP_DIR" || true
-          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-scenes-unsigned.ipa
+      # 5. Ad-Hoc подпись и ditto упаковка
+      - name: Package IPA
+        run: |
+          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+          ditto -ck --sequesterRsrc --keepParent Payload HenryStickmin-native-unsigned.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-scenes-unsigned-ipa
-          path: HenryStickmin-scenes-unsigned.ipa
+          name: HenryStickmin-native-unsigned-ipa
+          path: HenryStickmin-native-unsigned.ipa
