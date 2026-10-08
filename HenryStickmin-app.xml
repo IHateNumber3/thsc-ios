@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<application xmlns="http://ns.adobe.com/air/application/33.1">
+<application xmlns="http://ns.adobe.com/air/application/AIRVER">
   <id>com.innersloth.henry.HenryFlash</id>
   <versionNumber>0.1</versionNumber>
   <filename>HenryStickmin</filename>
@@ -14,14 +14,17 @@
   <supportedProfiles>mobileDevice</supportedProfiles>
   <icon>
     <image29x29>icons/HenryStickmin29.png</image29x29>
-    <image57x57>icons/HenryStickmin57.png</image57x57>
+    <image512x512>icons/HenryStickmin512.png</image512x512>
   </icon>
   <iPhone>
     <InfoAdditions><![CDATA[
       <key>UIDeviceFamily</key>
       <array><string>1</string><string>2</string></array>
-      <key>UIRequiresPersistentWiFi</key><false/>
+      <key>UIStatusBarHidden</key><true/>
     ]]></InfoAdditions>
     <requestedDisplayResolution>high</requestedDisplayResolution>
   </iPhone>
+  <extensions>
+    <extensionID>com.amanitadesign.steam.FRESteamWorks</extensionID>
+  </extensions>
 </application>
