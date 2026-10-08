@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF ассеты
+      # 1. Скачиваем SWF
       - name: Fetch SWF Assets
         run: |
           mkdir -p WebAssets
@@ -23,7 +23,7 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Генерируем AppDelegate.swift
+      # 2. Генерируем код Swift
       - name: Ensure HenryApp Source Exists
         run: |
           mkdir -p HenryApp
@@ -66,6 +66,7 @@ jobs:
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   window = UIWindow(frame: UIScreen.main.bounds)
                   let vc = UIViewController()
+                  vc.view.backgroundColor = .black
                   
                   let config = WKWebViewConfiguration()
                   let handler = AppSchemeHandler()
@@ -87,14 +88,15 @@ jobs:
           }
           EOF
 
-      # 3. Компиляция через swiftc с чистыми флагами SDK
-      - name: Build Executable via swiftc
+      # 3. Компиляция и сборка структуры Payload
+      - name: Build Executable and Assets
         run: |
           rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
 
+          # Компилируем бинарник
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios16.0 \
             -sdk "$SDK_PATH" \
@@ -103,9 +105,10 @@ jobs:
             -o Payload/HenryStickmin.app/HenryStickmin \
             HenryApp/AppDelegate.swift
 
+          # Копируем веб-ресурсы
           cp -R WebAssets Payload/HenryStickmin.app/
 
-          # Создаём валидный Info.plist
+          # Полный валидный Info.plist с указанием главного запуска
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
@@ -138,4 +141,28 @@ jobs:
                   <integer>1</integer>
                   <integer>2</integer>
               </array>
-              <key>UIRequiresFullScreen</key
+              <key>UIRequiresFullScreen</key>
+              <true/>
+              <key>UILaunchStoryboardName</key>
+              <string>LaunchScreen</string>
+              <key>UIApplicationSupportsIndirectInputEvents</key>
+              <true/>
+              <key>CFBundleSupportedPlatforms</key>
+              <array>
+                  <string>iPhoneOS</string>
+              </array>
+          </dict>
+          EOF
+
+      # 4. Упаковка IPA с Ad-Hoc подписью
+      - name: Package IPA
+        run: |
+          codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
+          zip -r HenryStickmin-native.ipa Payload
+
+      # 5. Выгрузка
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HenryStickmin-native-ipa
+          path: HenryStickmin-native.ipa
