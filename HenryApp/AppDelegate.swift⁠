@@ -1,81 +1,463 @@
 import UIKit
 import WebKit
 
-class AppSchemeHandler: NSObject, WKURLSchemeHandler {
-    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-        guard let url = urlSchemeTask.request.url else { return }
-        
-        var path = url.path
-        if path == "/" || path.isEmpty { path = "/index.html" }
-        
-        guard let bundlePath = Bundle.main.path(forResource: "WebAssets", ofType: nil) else {
-            urlSchemeTask.didFailWithError(NSError(domain: "AppError", code: 404, userInfo: [NSLocalizedDescriptionKey: "WebAssets bundle not found"]))
+// MARK: - Logger
+
+final class AppLogger {
+
+    static let shared = AppLogger()
+
+    private let queue = DispatchQueue(label: "THSC.AppLogger")
+
+    private init() {}
+
+    func log(_ message: String) {
+        let line = "[\(Date())] \(message)\n"
+
+        print(line)
+
+        queue.async {
+            guard let documentsURL = FileManager.default.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+            ).first else {
+                return
+            }
+
+            let logURL = documentsURL.appendingPathComponent("thsc.log")
+
+            guard let data = line.data(using: .utf8) else {
+                return
+            }
+
+            if FileManager.default.fileExists(atPath: logURL.path) {
+
+                do {
+                    let handle = try FileHandle(forWritingTo: logURL)
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: data)
+                    try handle.close()
+                } catch {
+                    print("Logger error: \(error)")
+                }
+
+            } else {
+
+                do {
+                    try data.write(to: logURL)
+                } catch {
+                    print("Logger create error: \(error)")
+                }
+            }
+        }
+    }
+}
+
+
+// MARK: - App Scheme Handler
+
+final class AppSchemeHandler: NSObject, WKURLSchemeHandler {
+
+    func webView(
+        _ webView: WKWebView,
+        start urlSchemeTask: WKURLSchemeTask
+    ) {
+
+        guard let url = urlSchemeTask.request.url else {
+            let error = NSError(
+                domain: "THSC.App",
+                code: 400,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Invalid URL"
+                ]
+            )
+
+            urlSchemeTask.didFailWithError(error)
             return
         }
-        
-        let filePath = bundlePath + path
-        
-        if FileManager.default.fileExists(atPath: filePath),
-           let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
-            let mimeType: String
-            if path.hasSuffix(".html") { mimeType = "text/html" }
-            else if path.hasSuffix(".js") { mimeType = "text/javascript" }
-            else if path.hasSuffix(".wasm") { mimeType = "application/wasm" }
-            else if path.hasSuffix(".swf") { mimeType = "application/x-shockwave-flash" }
-            else { mimeType = "application/octet-stream" }
-            
-            let response = URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: "utf-8")
+
+        var path = url.path
+
+        if path.isEmpty || path == "/" {
+            path = "/index.html"
+        }
+
+        // Убираем начальный /
+        let relativePath = String(path.dropFirst())
+
+        guard let assetsPath = Bundle.main.path(
+            forResource: "WebAssets",
+            ofType: nil
+        ) else {
+
+            let error = NSError(
+                domain: "THSC.App",
+                code: 404,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "WebAssets folder not found"
+                ]
+            )
+
+            AppLogger.shared.log(
+                "ERROR: WebAssets folder not found"
+            )
+
+            urlSchemeTask.didFailWithError(error)
+            return
+        }
+
+        let fileURL = URL(fileURLWithPath: assetsPath)
+            .appendingPathComponent(relativePath)
+
+        let filePath = fileURL.path
+
+        guard FileManager.default.fileExists(atPath: filePath) else {
+
+            AppLogger.shared.log(
+                "404: \(relativePath)"
+            )
+
+            let error = NSError(
+                domain: "THSC.App",
+                code: 404,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "File not found: \(relativePath)"
+                ]
+            )
+
+            urlSchemeTask.didFailWithError(error)
+            return
+        }
+
+        do {
+
+            let data = try Data(contentsOf: fileURL)
+
+            let mimeType = self.mimeType(
+                for: fileURL.pathExtension
+            )
+
+            let response = URLResponse(
+                url: url,
+                mimeType: mimeType,
+                expectedContentLength: data.count,
+                textEncodingName:
+                    mimeType.hasPrefix("text/")
+                    ? "utf-8"
+                    : nil
+            )
+
             urlSchemeTask.didReceive(response)
             urlSchemeTask.didReceive(data)
             urlSchemeTask.didFinish()
-        } else {
-            print("File not found or unreadable: \(filePath)")
-            let error = NSError(domain: "AppError", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found: \(path)"])
+
+        } catch {
+
+            AppLogger.shared.log(
+                "ERROR reading \(relativePath): \(error)"
+            )
+
             urlSchemeTask.didFailWithError(error)
         }
     }
-    
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+
+
+    func webView(
+        _ webView: WKWebView,
+        stop urlSchemeTask: WKURLSchemeTask
+    ) {
+        // Ничего не делаем.
+    }
+
+
+    private func mimeType(for extensionName: String) -> String {
+
+        switch extensionName.lowercased() {
+
+        case "html":
+            return "text/html"
+
+        case "css":
+            return "text/css"
+
+        case "js":
+            return "text/javascript"
+
+        case "json":
+            return "application/json"
+
+        case "wasm":
+            return "application/wasm"
+
+        case "png":
+            return "image/png"
+
+        case "jpg", "jpeg":
+            return "image/jpeg"
+
+        case "gif":
+            return "image/gif"
+
+        case "webp":
+            return "image/webp"
+
+        case "svg":
+            return "image/svg+xml"
+
+        case "ico":
+            return "image/x-icon"
+
+        case "woff":
+            return "font/woff"
+
+        case "woff2":
+            return "font/woff2"
+
+        case "ttf":
+            return "font/ttf"
+
+        case "otf":
+            return "font/otf"
+
+        case "mp3":
+            return "audio/mpeg"
+
+        case "wav":
+            return "audio/wav"
+
+        case "ogg":
+            return "audio/ogg"
+
+        case "mp4":
+            return "video/mp4"
+
+        case "webm":
+            return "video/webm"
+
+        default:
+            return "application/octet-stream"
+        }
+    }
 }
 
-class WebNavigationDelegate: NSObject, WKNavigationDelegate {
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        print("Navigation failed: \(error.localizedDescription)")
+
+// MARK: - Navigation Delegate
+
+final class WebNavigationDelegate: NSObject, WKNavigationDelegate {
+
+    func webView(
+        _ webView: WKWebView,
+        didStartProvisionalNavigation navigation: WKNavigation!
+    ) {
+
+        AppLogger.shared.log(
+            "WebView: navigation started"
+        )
     }
-    
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        print("CRITICAL: WebView process terminated (likely OOM / Memory limit exceeded)!")
-        // Автоматически перезагружаем страницу при падении из-за памяти
-        webView.reload()
+
+
+    func webView(
+        _ webView: WKWebView,
+        didFinish navigation: WKNavigation!
+    ) {
+
+        AppLogger.shared.log(
+            "WebView: navigation finished"
+        )
+    }
+
+
+    func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: Error
+    ) {
+
+        AppLogger.shared.log(
+            "WebView provisional navigation error: \(error)"
+        )
+    }
+
+
+    func webView(
+        _ webView: WKWebView,
+        didFail navigation: WKNavigation!,
+        withError error: Error
+    ) {
+
+        AppLogger.shared.log(
+            "WebView navigation error: \(error)"
+        )
+    }
+
+
+    func webViewWebContentProcessDidTerminate(
+        _ webView: WKWebView
+    ) {
+
+        // ВАЖНО:
+        // НЕ делаем webView.reload().
+        //
+        // Если WebKit умер из-за нехватки памяти,
+        // автоматический reload может создать
+        // новый цикл загрузки и снова увеличить
+        // использование памяти.
+
+        AppLogger.shared.log(
+            "CRITICAL: WKWebView WebContent process terminated"
+        )
     }
 }
+
+
+// MARK: - View Controller
+
+final class ViewController: UIViewController {
+
+    private var webView: WKWebView!
+
+    private let schemeHandler = AppSchemeHandler()
+    private let navigationDelegate = WebNavigationDelegate()
+
+
+    override func loadView() {
+
+        let view = UIView()
+
+        view.backgroundColor = .black
+
+        self.view = view
+    }
+
+
+    override func viewDidLoad() {
+
+        super.viewDidLoad()
+
+        let configuration = WKWebViewConfiguration()
+
+        configuration.setURLSchemeHandler(
+            schemeHandler,
+            forURLScheme: "app"
+        )
+
+        // Не даём WebKit сохранять ненужное
+        // состояние страницы между запусками.
+
+        configuration.websiteDataStore =
+            WKWebsiteDataStore.default()
+
+        webView = WKWebView(
+            frame: view.bounds,
+            configuration: configuration
+        )
+
+        webView.autoresizingMask = [
+            .flexibleWidth,
+            .flexibleHeight
+        ]
+
+        webView.navigationDelegate =
+            navigationDelegate
+
+        webView.scrollView.isScrollEnabled = false
+
+        webView.backgroundColor = .black
+
+        view.addSubview(webView)
+
+        loadTHSC()
+    }
+
+
+    private func loadTHSC() {
+
+        guard let url = URL(
+            string: "app://henry/index.html"
+        ) else {
+
+            AppLogger.shared.log(
+                "ERROR: Could not create THSC URL"
+            )
+
+            return
+        }
+
+        AppLogger.shared.log(
+            "Loading THSC: \(url)"
+        )
+
+        webView.load(
+            URLRequest(url: url)
+        )
+    }
+
+
+    override func didReceiveMemoryWarning() {
+
+        super.didReceiveMemoryWarning()
+
+        AppLogger.shared.log(
+            "WARNING: iOS memory warning received"
+        )
+    }
+
+
+    deinit {
+
+        AppLogger.shared.log(
+            "ViewController deinit"
+        )
+
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+    }
+}
+
+
+// MARK: - App Delegate
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
-    let webDelegate = WebNavigationDelegate() // Удерживаем делегат в памяти
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        window = UIWindow(frame: UIScreen.main.bounds)
-        let vc = UIViewController()
-        
-        let config = WKWebViewConfiguration()
-        let handler = AppSchemeHandler()
-        config.setURLSchemeHandler(handler, forURLScheme: "app")
-        
-        let webView = WKWebView(frame: vc.view.bounds, configuration: config)
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        webView.scrollView.isScrollEnabled = false
-        webView.navigationDelegate = webDelegate // Привязываем делегат
-        
-        vc.view.addSubview(webView)
-        
-        if let url = URL(string: "app://henry/index.html") {
-            webView.load(URLRequest(url: url))
-        }
-        
-        window?.rootViewController = vc
-        window?.makeKeyAndVisible()
+    var window: UIWindow?
+
+    private let viewController = ViewController()
+
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions:
+            [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+
+        AppLogger.shared.log(
+            "THSC iOS application started"
+        )
+
+        let window = UIWindow(
+            frame: UIScreen.main.bounds
+        )
+
+        window.rootViewController =
+            viewController
+
+        window.makeKeyAndVisible()
+
+        self.window = window
+
         return true
+    }
+
+
+    func applicationDidReceiveMemoryWarning(
+        _ application: UIApplication
+    ) {
+
+        AppLogger.shared.log(
+            "CRITICAL: Application memory warning"
+        )
     }
 }
