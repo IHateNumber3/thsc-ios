@@ -58,7 +58,7 @@ jobs:
           }
           AS
           cat > build/extension.xml <<EXT
-          <extension xmlns="http://ns.adobe.com/air/extension/2.5">
+          <extension xmlns="http://ns.adobe.com/air/extension/$AIRVER">
           	<id>com.amanitadesign.steam.FRESteamWorks</id>
           	<versionNumber>0.7.0</versionNumber>
           	<platforms>
@@ -84,7 +84,7 @@ jobs:
           cp dl/*.swf build/pkg/
           cp -R icons build/pkg/icons
           cp ./*_english.txt build/pkg/
-          sed "s/AIRVER/$AIRVER/" HenryStickmin-app.xml > build/pkg/application.xml
+          sed -E "s#air/application/[0-9.]+#air/application/$AIRVER#" HenryStickmin-app.xml > build/pkg/application.xml
           ls -lh build/pkg
 
       - name: Dummy signing identity + fake profile (KSign re-signs later)
