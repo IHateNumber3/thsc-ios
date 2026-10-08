@@ -95,19 +95,20 @@ jobs:
           }
           EOF
 
-      # 4. Нативная компиляция через xcodebuild (как в Catty!)
-      - name: Build Unsigned App with xcodebuild
+      # 4. Нативная компиляция через swiftc (без ADT и xcodebuild-мусора!)
+      - name: Build Unsigned App with swiftc
         run: |
           mkdir -p Payload/HenryStickmin.app
           
-          # Компилируем чистый ARM64 Swift бинарник под iphoneos
+          # Флаг -parse-as-library решает ошибку с @main
           xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
+            -parse-as-library \
             -emit-executable \
             -o Payload/HenryStickmin.app/HenryStickmin \
             HenryApp/AppDelegate.swift
 
-          # Копируем ресурсы и создаем Info.plist
+          # Копируем веб-ассеты и создаем правильный Info.plist
           cp -R WebAssets Payload/HenryStickmin.app/
           
           cat << 'EOF' > Payload/HenryStickmin.app/Info.plist
