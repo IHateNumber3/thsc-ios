@@ -93,7 +93,7 @@ jobs:
           EOF
           fi
 
-      # 3. Генерируем проект через XcodeGen с четким указанием папки HenryApp
+      # 3. Генерируем проект через XcodeGen
       - name: Generate Xcode Project
         run: |
           cat << 'EOF' > project.yml
@@ -134,17 +134,14 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      # 5. Упаковка в правильный IPA с Payload
+      # 5. Упаковка в IPA
       - name: Package Native IPA
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/HenryStickmin.app Payload/
-          
-          # На всякий случай копируем WebAssets в ресурсы бандла, если xcodebuild их не подхватил автоматически
           if [ -d "WebAssets" ]; then
             cp -R WebAssets Payload/HenryStickmin.app/
           fi
-          
           zip -r HenryStickmin-native.ipa Payload
 
       # 6. Выгрузка артефакта
