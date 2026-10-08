@@ -13,7 +13,7 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 1. Скачиваем SWF ассеты
+      # 1. Скачиваем SWF
       - name: Fetch SWF Assets from Releases
         run: |
           mkdir -p WebAssets
@@ -23,19 +23,19 @@ jobs:
           curl -sSL --fail "$BASE_URL/HenryCtM.swf" -o WebAssets/HenryCtM.swf
           curl -sSL --fail "$BASE_URL/HenryCtM2.swf" -o WebAssets/HenryCtM2.swf
 
-      # 2. Компиляция и сборка правильной структуры Payload/HenryStickmin.app
+      # 2. Переходим внутрь HenryApp и компилируем напрямую
       - name: Build Native App Bundle
         run: |
           rm -rf Payload
           mkdir -p Payload/HenryStickmin.app
 
-          # Компилируем арм64 бинарник прямо из папки HenryApp/
-          xcrun -sdk iphoneos swiftc \
+          # Компилируем, находясь прямо в рабочей директории HenryApp
+          (cd HenryApp && xcrun -sdk iphoneos swiftc \
             -target arm64-apple-ios14.0 \
             -parse-as-library \
             -emit-executable \
-            -o Payload/HenryStickmin.app/HenryStickmin \
-            "${{ github.workspace }}/HenryApp/AppDelegate.swift"
+            -o ../Payload/HenryStickmin.app/HenryStickmin \
+            AppDelegate.swift)
 
           # Копируем веб-ассеты
           cp -R WebAssets Payload/HenryStickmin.app/
@@ -82,13 +82,13 @@ jobs:
           </dict>
           EOF
 
-      # 3. Правильная упаковка IPA (сохраняем папку Payload внутри zip)
+      # 3. Упаковываем всю папку Payload в zip (IPA)
       - name: Package Valid IPA
         run: |
           codesign --force --sign - --timestamp=none Payload/HenryStickmin.app
           zip -r HenryStickmin-native.ipa Payload
 
-      # 4. Выгрузка артефакта
+      # 4. Выгружаем артефакт
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
