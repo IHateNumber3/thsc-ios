@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <application xmlns="http://ns.adobe.com/air/application/33.1">
-  <id>com.innersloth.henry.HenryFlash</id>
-  <versionNumber>0.1</versionNumber>
-  <filename>HenryStickmin</filename>
-  <name>Henry Stickmin</name>
+  <id>com.steve.defendingthe.MallFlash</id>
+  <versionNumber>1.0</versionNumber>
+  <filename>DTM</filename>
+  <name>Defending The Mall</name>
   <initialWindow>
-    <content>Henry.swf</content>
+    <content>DTM.swf</content>
     <fullScreen>true</fullScreen>
     <aspectRatio>landscape</aspectRatio>
     <autoOrients>false</autoOrients>
