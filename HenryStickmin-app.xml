@@ -2,10 +2,10 @@
 <application xmlns="http://ns.adobe.com/air/application/33.1">
   <id>com.steve.defendingthe.MallFlash</id>
   <versionNumber>1.0</versionNumber>
-  <filename>bundle</filename>
+  <filename>DTM</filename>
   <name>Defending The Mall</name>
   <initialWindow>
-    <content>DTM.swf</content>
+    <content>bundle.swf</content>
     <fullScreen>true</fullScreen>
     <aspectRatio>landscape</aspectRatio>
     <autoOrients>false</autoOrients>
