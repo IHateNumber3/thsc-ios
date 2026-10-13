@@ -19,7 +19,9 @@ jobs:
         run: |
           mkdir -p dl
           gh release download Files --repo "${{ github.repository }}" --dir dl \
-            -p 'AIRSDK_MacOS.zip' -p '*.swf'
+            -p 'AIRSDK_MacOS.zip'
+          gh release download Defending --repo "${{ github.repository }}" --dir dl \
+            -p '*.swf'
           ls -lh dl
 
       - name: Unpack AIR SDK
