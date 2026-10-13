@@ -86,7 +86,6 @@ jobs:
           mkdir -p build/pkg
           cp dl/*.swf build/pkg/
           cp -R icons build/pkg/icons
-          cp ./*_english.txt build/pkg/
           sed -E "s#air/application/[0-9.]+#air/application/$AIRVER#" HenryStickmin-app.xml > build/pkg/application.xml
           ls -lh build/pkg
 
