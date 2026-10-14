@@ -62,11 +62,11 @@ jobs:
           mkdir -p "$PLAYERGLOBAL_DIR"
           wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/27.0/playerglobal.swc
 
-          # Исправляем путь в flex-config.xml, чтобы компилятор не искал несуществующие переменные
+          # Исправляем ВСЕ вхождения playerglobalHome в flex-config.xml
           CONFIG_FILE="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
           if [ -f "$CONFIG_FILE" ]; then
-            # Заменяем {playerglobalHome}/27.0 на абсолютный или корректный относительный путь
-            sed -i 's|{playerglobalHome}/27.0|libs/player/27.0|g' "$CONFIG_FILE"
+            sed -i 's|\{playerglobalHome\}/27\.0|libs/player/27\.0|g' "$CONFIG_FILE"
+            sed -i 's|\{playerglobalHome\}|libs/player|g' "$CONFIG_FILE"
           fi
 
           MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
