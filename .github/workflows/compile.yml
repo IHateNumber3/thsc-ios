@@ -1,8 +1,6 @@
 name: Compile AS3 to SWF
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
