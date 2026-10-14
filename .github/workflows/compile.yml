@@ -29,13 +29,14 @@ jobs:
 
     - name: Download and Setup Apache Flex SDK
       run: |
-        # Скачиваем официальный компилятор Apache Flex для сборки SWF
         wget https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz
         mkdir -p flex-sdk
         tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
         
-        # Делаем компилятор исполняемым
-        chmod +x flex-sdk/bin/mxmlc
+        # Ищем, куда именно распаковался mxmlc, и даем права
+        MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
+        chmod +x "$MXMLC_PATH"
+        echo "MXMLC found at: $MXMLC_PATH"
 
     - name: Compile ActionScript to SWF
       run: |
