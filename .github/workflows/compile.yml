@@ -70,13 +70,9 @@ jobs:
           exit 1
         fi
         SRC_DIR=$(dirname "$MAIN_AS_PATH")
-        
-        # Находим папки gfx, snd и файл game.json относительно распаковки
-        PROJECT_ROOT=$(dirname "$SRC_DIR")
-        
-        # Формируем аргументы для встраивания ресурсов (через -include-libraries или директории)
-        # Передаем всю папку с ассетами в качестве источника ресурсов для компилятора
-        echo "Збираємо SWF разом з ресурсами (gfx, snd, game.json)..."
+        BUNDLE_DIR=$(dirname "$SRC_DIR")
+
+        echo "Компіляція з вбудовуванням ресурсів з: $BUNDLE_DIR"
 
         "$MXMLC_PATH" \
           -source-path "$SRC_DIR" \
