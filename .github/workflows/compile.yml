@@ -19,7 +19,6 @@ jobs:
           gh release download Defending -p "defending-the-mall-vector.zip" --dir .
           gh release download Defending -p "apache-flex-sdk-4.16.1-bin.tar.gz" --dir .
           
-          # Распаковываем код и ресурсы
           mkdir -p extracted_project extracted_assets flex-sdk
           unzip -q flash-project.zip -d extracted_project
           unzip -q defending-the-mall-vector.zip -d extracted_assets
@@ -32,10 +31,11 @@ jobs:
 
       - name: Run Converter / Preprocessor
         run: |
-          # Запускаем конвертер, если он есть в проекте
           CONVERTER_PATH=$(find extracted_project -name "convert.py" -type f | head -n 1)
           if [ -n "$CONVERTER_PATH" ]; then
-            python3 "$CONVERTER_PATH"
+            CONVERTER_DIR=$(dirname "$CONVERTER_PATH")
+            # Передаем папку с ресурсами и папку вывода в качестве аргументов
+            python3 "$CONVERTER_PATH" extracted_assets extracted_project/flash/assets
           fi
 
       - name: Set up Java (for Flex SDK)
@@ -56,7 +56,6 @@ jobs:
           MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
           SRC_DIR=$(dirname "$MAIN_AS_PATH")
 
-          # Компилируем Main.as в итоговый SWF
           "$MXMLC_PATH" \
             -source-path "$SRC_DIR" \
             -output game.swf \
