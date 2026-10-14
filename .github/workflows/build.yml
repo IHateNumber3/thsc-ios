@@ -1,6 +1,7 @@
 name: Build Henry IPA (AIR)
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,15 +14,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Download SWFs and AIR SDK from release "Files"
+      - name: Download AIR SDK and game resources.zip from Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dl
+          # Качаем AIR SDK из релиза Files
           gh release download Files --repo "${{ github.repository }}" --dir dl \
-            -p 'AIRSDK_MacOS.zip'
+            -p 'AIRSDK_MacOS.zip' || true
+          
+          # Если AIR SDK нет в релизе Files, качаем его автоматически
+          if [ ! -f "dl/AIRSDK_MacOS.zip" ]; then
+            echo "AIR SDK не найден в релизе, скачиваем с сервера..."
+            curl -sSL "https://airsdk.harman.com/assets/downloads/33.1.1.930/AIRSDK_MacOS.zip" -o dl/AIRSDK_MacOS.zip
+          fi
+
+          # Качаем наш единственный resources.zip из релиза Defending
           gh release download Defending --repo "${{ github.repository }}" --dir dl \
-            -p '*.swf'
+            -p 'resources.zip'
+          
           ls -lh dl
 
       - name: Unpack AIR SDK
@@ -81,12 +92,47 @@ jobs:
             build/extension.xml -swc build/stub.swc \
             -platform default -C build/swc library.swf
 
-      - name: Assemble package folder
+      - name: Assemble package folder from resources.zip
         run: |
           mkdir -p build/pkg
-          cp dl/*.swf build/pkg/
-          cp -R icons build/pkg/icons
-          sed -E "s#air/application/[0-9.]+#air/application/$AIRVER#" HenryStickmin-app.xml > build/pkg/application.xml
+          # Распаковываем наш resources.zip прямо в папку сборки
+          unzip -q dl/resources.zip -d build/pkg/
+          
+          # Если внутри game.swf называется по-другому, делаем копию/переименование под bundle.swf
+          if [ -f "build/pkg/game.swf" ]; then
+            cp build/pkg/game.swf build/pkg/bundle.swf
+          fi
+
+          # Если папки icons нет, создаем пустышку или копируем существующую
+          if [ -d "icons" ]; then
+            cp -R icons build/pkg/icons
+          else
+            mkdir -p build/pkg/icons
+          fi
+
+          # Настраиваем манифест приложения
+          if [ -f "HenryStickmin-app.xml" ]; then
+            sed -E "s#air/application/[0-9.]+#air/application/$AIRVER#" HenryStickmin-app.xml > build/pkg/application.xml
+          else
+            # Резервный простой манифест AIR, если файла нет в репо
+            cat > build/pkg/application.xml <<APPXML
+          <?xml version="1.0" encoding="utf-8" ?>
+          <application xmlns="http://ns.adobe.com/air/application/$AIRVER">
+            <id>com.innersloth.henry.defending</id>
+            <versionNumber>1.0.0</versionNumber>
+            <filename>HenryStickmin</filename>
+            <name>Defending the Mall</name>
+            <initialWindow>
+              <content>bundle.swf</content>
+              <visible>true</visible>
+              <fullScreen>true</fullScreen>
+              <autoOrients>true</autoOrients>
+              <renderMode>direct</renderMode>
+            </initialWindow>
+          </application>
+          APPXML
+          fi
+          
           ls -lh build/pkg
 
       - name: Dummy signing identity + fake profile (KSign re-signs later)
@@ -95,8 +141,6 @@ jobs:
           OSSL="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"
           [ -x "$OSSL" ] || OSSL=openssl
           "$OSSL" version
-          # Apple-style development cert: CN "iPhone Developer: ...", codeSigning EKU,
-          # Apple iOS-development OID extension
           "$OSSL" req -x509 -newkey rsa:2048 -nodes -days 3650 \
             -keyout build/sign/key.pem -out build/sign/cert.pem \
             -subj "/CN=iPhone Developer: Dummy Dev (DUMMY00000)/OU=DUMMY00000/O=Dummy Dev/C=US" \
@@ -136,20 +180,20 @@ jobs:
           java -jar "$SDK/lib/adt.jar" -checkstore -storetype pkcs12 \
             -keystore build/sign/dummy.p12 -storepass pass || true
 
-      - name: "Package IPA (interpreter, game loads sub-SWFs at runtime)"
+      - name: "Package IPA (interpreter, game loads sub-SWFs and assets at runtime)"
         working-directory: build/pkg
         run: |
-          # the SDK zip may have lost exec bits on the iOS toolchain
           find "$SDK/lib" "$SDK/bin" -type f \( -path '*/aot/*' -o -path '*/bin/*' \) -exec chmod +x {} + || true
           xcodebuild -version
+          
+          # Упаковываем bundle.swf и все распакованные папки (gfx, snd, game.json) внутрь IPA
           java -Xmx4g -jar "$SDK/lib/adt.jar" -package \
             -target ipa-test-interpreter \
             -storetype pkcs12 -keystore ../sign/dummy.p12 -storepass pass \
             -provisioning-profile ../sign/dummy.mobileprovision \
             ../../HenryStickmin.ipa application.xml \
             -platformsdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
-            bundle.swf \
-            icons \
+            . \
             -extdir ../ext
 
       - uses: actions/upload-artifact@v4
