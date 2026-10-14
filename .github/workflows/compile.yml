@@ -64,18 +64,19 @@ jobs:
             f.write(content)
         "
 
-        MAIN_AS_PATH=$(find extracted_bundle -name "Main.as" -type f | head -n 1)
+        # Ищем Main.as конкретно внутри папки out/
+        MAIN_AS_PATH=$(find extracted_bundle -path "*/out/*/Main.as" -o -name "Main.as" -type f | head -n 1)
         if [ -z "$MAIN_AS_PATH" ]; then
-          echo "ПОМИЛКА: Не знайдено Main.as!"
+          echo "ПОМИЛКА: Не знайдено Main.as у палці out!"
           exit 1
         fi
         SRC_DIR=$(dirname "$MAIN_AS_PATH")
-        BUNDLE_ROOT=$(dirname "$SRC_DIR")
+        OUT_ROOT=$(dirname "$SRC_DIR")
 
         echo "Знайдено вихідники у: $SRC_DIR"
-        echo "Коренева папка з ресурсами: $BUNDLE_ROOT"
+        echo "Коренева папка out з ресурсами: $OUT_ROOT"
 
-        # Компилируем Main.as
+        # Компилируем Main.as с правильным путем к исходникам из out/
         "$MXMLC_PATH" \
           -source-path "$SRC_DIR" \
           -output game.swf \
