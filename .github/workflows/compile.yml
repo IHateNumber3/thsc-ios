@@ -33,9 +33,15 @@ jobs:
         run: |
           CONVERTER_PATH=$(find extracted_project -name "convert.py" -type f | head -n 1)
           if [ -n "$CONVERTER_PATH" ]; then
-            CONVERTER_DIR=$(dirname "$CONVERTER_PATH")
-            # Передаем папку с ресурсами и папку вывода в качестве аргументов
-            python3 "$CONVERTER_PATH" extracted_assets extracted_project/flash/assets
+            # Ищем реальную папку assets внутри распакованных ресурсов Electron
+            ASSETS_DIR=$(find extracted_assets -type d -path "*/resources/app/assets" | head -n 1)
+            if [ -z "$ASSETS_DIR" ]; then
+              # Запасной вариант, если структура плоская
+              ASSETS_DIR="extracted_assets"
+            fi
+            
+            echo "Используем папку ассетов: $ASSETS_DIR"
+            python3 "$CONVERTER_PATH" "$ASSETS_DIR" extracted_project/flash/assets
           fi
 
       - name: Set up Java (for Flex SDK)
