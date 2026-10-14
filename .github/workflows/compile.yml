@@ -29,18 +29,21 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install system dependencies for converter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+
       - name: Run Converter / Preprocessor
         run: |
           CONVERTER_PATH=$(find extracted_project -name "convert.py" -type f | head -n 1)
           if [ -n "$CONVERTER_PATH" ]; then
-            # Ищем реальную папку assets внутри распакованных ресурсов Electron
             ASSETS_DIR=$(find extracted_assets -type d -path "*/resources/app/assets" | head -n 1)
             if [ -z "$ASSETS_DIR" ]; then
-              # Запасной вариант, если структура плоская
               ASSETS_DIR="extracted_assets"
             fi
             
-            echo "Используем папку ассетов: $ASSETS_DIR"
+            echo "Використовуємо папку активів: $ASSETS_DIR"
             python3 "$CONVERTER_PATH" "$ASSETS_DIR" extracted_project/flash/assets
           fi
 
@@ -62,6 +65,7 @@ jobs:
           MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
           SRC_DIR=$(dirname "$MAIN_AS_PATH")
 
+          # Компилируем Main.as в итоговый SWF
           "$MXMLC_PATH" \
             -source-path "$SRC_DIR" \
             -output game.swf \
