@@ -1,0 +1,55 @@
+name: Compile AS3 to SWF
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download bundle.zip from Release (Defending)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release download Defending -p "bundle.zip" --dir .
+        mkdir -p src
+        unzip -q bundle.zip -d src
+
+    - name: Set up Java (Required for Flex SDK)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: Download and Setup Apache Flex SDK
+      run: |
+        # Скачиваем официальный компилятор Apache Flex для сборки SWF
+        wget https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz
+        mkdir -p flex-sdk
+        tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
+        
+        # Делаем компилятор исполняемым
+        chmod +x flex-sdk/bin/mxmlc
+
+    - name: Compile ActionScript to SWF
+      run: |
+        # Компилируем Main.as (главную точку входа) в полноценный game.swf
+        # Указываем путь к исходникам внутри распакованной папки
+        flex-sdk/bin/mxmlc \
+          -source-path src \
+          -output game.swf \
+          src/Main.as
+
+    - name: Upload compiled SWF
+      uses: actions/upload-artifact@v4
+      with:
+        name: compiled-game-swf
+        path: game.swf
