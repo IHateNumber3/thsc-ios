@@ -95,17 +95,22 @@ jobs:
           mkdir -p tmp_res
           unzip -q dl/resources.zip -d tmp_res/
           
-          # Переносим всё содержимое архива в корень build/pkg
-          cp -rn tmp_res/*/* build/pkg/ 2>/dev/null || cp -rn tmp_res/* build/pkg/
-
-          # УНИВЕРСАЛЬНЫЙ ПОИСК SWF: найдем любой SWF в распакованной папке и сделаем из него bundle.swf
-          FOUND_SWF=$(find build/pkg -name "*.swf" ! -name "game.swf" | head -1)
-          if [ -n "$FOUND_SWF" ]; then
-            echo "Найден SWF файл: $FOUND_SWF"
-            cp "$FOUND_SWF" build/pkg/game.swf
+          # Находим, в какой папке реально лежит game.swf внутри распакованного архива
+          SWF_PATH=$(find tmp_res -name "game.swf" | head -1)
+          
+          if [ -n "$SWF_PATH" ]; then
+            SRC_DIR=$(dirname "$SWF_PATH")
+            echo "Нашли файлы в папке: $SRC_DIR"
+            # Переносим всё содержимое этой папки прямо в корень build/pkg
+            cp -r "$SRC_DIR"/* build/pkg/
           else
-            echo "ОШИБКА: Ни одного SWF файла не найдено в архиве!"
+            echo "ОШИБКА: game.swf вообще не найден в архиве!"
             exit 1
+          fi
+
+          # Переименовываем game.swf в bundle.swf для Adobe AIR
+          if [ -f "build/pkg/game.swf" ]; then
+            mv build/pkg/game.swf build/pkg/bundle.swf
           fi
 
           if [ -d "icons" ]; then
@@ -135,7 +140,7 @@ jobs:
           APPXML
           fi
           
-          echo "Содержимое папки сборки:"
+          echo "Итоговое содержимое папки build/pkg:"
           ls -la build/pkg
 
       - name: Dummy signing identity + fake profile (KSign re-signs later)
