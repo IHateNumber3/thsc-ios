@@ -99,10 +99,10 @@ jobs:
           cp -rn tmp_res/*/* build/pkg/ 2>/dev/null || cp -rn tmp_res/* build/pkg/
 
           # УНИВЕРСАЛЬНЫЙ ПОИСК SWF: найдем любой SWF в распакованной папке и сделаем из него bundle.swf
-          FOUND_SWF=$(find build/pkg -name "*.swf" ! -name "bundle.swf" | head -1)
+          FOUND_SWF=$(find build/pkg -name "*.swf" ! -name "game.swf" | head -1)
           if [ -n "$FOUND_SWF" ]; then
             echo "Найден SWF файл: $FOUND_SWF"
-            cp "$FOUND_SWF" build/pkg/bundle.swf
+            cp "$FOUND_SWF" build/pkg/game.swf
           else
             echo "ОШИБКА: Ни одного SWF файла не найдено в архиве!"
             exit 1
