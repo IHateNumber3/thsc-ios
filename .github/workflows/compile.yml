@@ -51,7 +51,10 @@ jobs:
         rm -f "$PLAYERGLOBAL_DIR/playerglobal.swc"
         wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/27.0/playerglobal.swc
         
-        ls -lh "$PLAYERGLOBAL_DIR/playerglobal.swc"
+        ABS_PATH="$(pwd)/$PLAYERGLOBAL_DIR"
+        CONFIG_PATH="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
+        
+        sed -i 's|\{playerglobalHome\}/27.0|'"$ABS_PATH"'|g' "$CONFIG_PATH"
 
         "$MXMLC_PATH" \
           -source-path src \
