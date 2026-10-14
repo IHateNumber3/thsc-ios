@@ -58,6 +58,7 @@ jobs:
           MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
           chmod +x "$MXMLC_PATH"
 
+          # Создаем правильную структуру для playerglobal, чтобы flex-config её увидел
           PLAYERGLOBAL_DIR="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/27.0"
           mkdir -p "$PLAYERGLOBAL_DIR"
           wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/27.0/playerglobal.swc
@@ -65,9 +66,10 @@ jobs:
           MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
           SRC_DIR=$(dirname "$MAIN_AS_PATH")
 
-          # Компилируем Main.as в итоговый SWF
+          # Компилируем Main.as, явно указывая версию playerglobal
           "$MXMLC_PATH" \
             -source-path "$SRC_DIR" \
+            -playerglobal-version 27.0 \
             -output game.swf \
             "$MAIN_AS_PATH"
 
