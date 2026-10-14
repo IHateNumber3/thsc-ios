@@ -54,11 +54,20 @@ jobs:
         ABS_PATH="$(pwd)/$PLAYERGLOBAL_DIR"
         CONFIG_PATH="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
         
-        sed -i 's|\{playerglobalHome\}/27.0|'"$ABS_PATH"'|g' "$CONFIG_PATH"
+        python3 -c "
+        with open('$CONFIG_PATH', 'r') as f:
+            content = f.read()
+        import re
+        content = re.sub(r'<external-library-path>.*?</external-library-path>', '<external-library-path/>', content, flags=re.DOTALL)
+        content = re.sub(r'<library-path>.*?</library-path>', '<library-path/>', content, flags=re.DOTALL)
+        with open('$CONFIG_PATH', 'w') as f:
+            f.write(content)
+        "
 
         "$MXMLC_PATH" \
           -source-path src \
           -output game.swf \
+          -external-library-path+="$ABS_PATH/playerglobal.swc" \
           src/Main.as
 
     - name: Upload compiled SWF
