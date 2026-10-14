@@ -48,16 +48,12 @@ jobs:
         PLAYERGLOBAL_DIR="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/27.0"
         mkdir -p "$PLAYERGLOBAL_DIR"
         
-        # Видаляємо старий кривий файл, якщо він залишився
         rm -f "$PLAYERGLOBAL_DIR/playerglobal.swc"
-        
-        # Скачуємо реальний бінарний playerglobal.swc з робочого дзеркала
-        wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://github.com/nyxi/flex-sdk/raw/master/frameworks/libs/player/27.0/playerglobal.swc
-        
-        # Перевіряємо, що скачався саме бінарник (а не HTML-заглушка), файл має бути великим (>1МБ)
+        wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://sourceforge.net/projects/flexsdk.mirror/files/playerglobal/playerglobal27_0.swc || \
+        wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/apache/flex-falcon/master/compiler/lib/external/playerglobal27_0.swc
+
         ls -lh "$PLAYERGLOBAL_DIR/playerglobal.swc"
 
-        # Компілюємо Main.as в готовий game.swf
         "$MXMLC_PATH" \
           -source-path src \
           -output game.swf \
