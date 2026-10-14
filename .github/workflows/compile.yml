@@ -44,7 +44,13 @@ jobs:
         
         echo "Використовуємо компилятор: $MXMLC_PATH"
         chmod +x "$MXMLC_PATH"
-        
+
+        # Скачиваем playerglobal 27.0 для предотвращения ошибки конфигурации
+        PLAYERGLOBAL_DIR="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/27.0"
+        mkdir -p "$PLAYERGLOBAL_DIR"
+        wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://fpdownload.macromedia.com/get/flashplayer/updaters/27/playerglobal27_0.swc
+
+        # Компилируем Main.as в готовый game.swf
         "$MXMLC_PATH" \
           -source-path src \
           -output game.swf \
