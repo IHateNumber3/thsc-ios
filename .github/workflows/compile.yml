@@ -62,17 +62,19 @@ jobs:
           mkdir -p "$PLAYERGLOBAL_DIR"
           wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/27.0/playerglobal.swc
 
-          # Исправляем ВСЕ вхождения playerglobalHome в flex-config.xml
-          CONFIG_FILE="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
-          if [ -f "$CONFIG_FILE" ]; then
-            sed -i 's|\{playerglobalHome\}/27\.0|libs/player/27\.0|g' "$CONFIG_FILE"
-            sed -i 's|\{playerglobalHome\}|libs/player|g' "$CONFIG_FILE"
-          fi
+          python3 -c '
+          config_path = "flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
+          with open(config_path, "r", encoding="utf-8") as f:
+              content = f.read()
+          content = content.replace("{playerglobalHome}/27.0", "libs/player/27.0")
+          content = content.replace("{playerglobalHome}", "libs/player")
+          with open(config_path, "w", encoding="utf-8") as f:
+              f.write(content)
+          '
 
           MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
           SRC_DIR=$(dirname "$MAIN_AS_PATH")
 
-          # Компилируем Main.as в итоговый SWF
           "$MXMLC_PATH" \
             -source-path "$SRC_DIR" \
             -output game.swf \
