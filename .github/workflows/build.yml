@@ -19,17 +19,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dl
-          # Качаем AIR SDK из релиза Files
           gh release download Files --repo "${{ github.repository }}" --dir dl \
             -p 'AIRSDK_MacOS.zip' || true
           
-          # Если AIR SDK нет в релизе Files, качаем его автоматически
           if [ ! -f "dl/AIRSDK_MacOS.zip" ]; then
             echo "AIR SDK не найден в релизе, скачиваем с сервера..."
             curl -sSL "https://airsdk.harman.com/assets/downloads/33.1.1.930/AIRSDK_MacOS.zip" -o dl/AIRSDK_MacOS.zip
           fi
 
-          # Качаем resources.zip из релиза Defending
           gh release download Defending --repo "${{ github.repository }}" --dir dl \
             -p 'resources.zip'
           
@@ -98,17 +95,17 @@ jobs:
           mkdir -p tmp_res
           unzip -q dl/resources.zip -d tmp_res/
           
-          # Переносим файлы в корень build/pkg независимо от вложенности в архиве
-          JSON_PATH=$(find tmp_res -name "game.json" | head -1)
-          if [ -n "$JSON_PATH" ]; then
-            JSON_DIR=$(dirname "$JSON_PATH")
-            cp -rn "$JSON_DIR"/* build/pkg/
-          else
-            cp -rn tmp_res/* build/pkg/
-          fi
+          # Переносим всё содержимое архива в корень build/pkg
+          cp -rn tmp_res/*/* build/pkg/ 2>/dev/null || cp -rn tmp_res/* build/pkg/
 
-          if [ -f "build/pkg/game.swf" ]; then
-            cp build/pkg/game.swf build/pkg/bundle.swf
+          # УНИВЕРСАЛЬНЫЙ ПОИСК SWF: найдем любой SWF в распакованной папке и сделаем из него bundle.swf
+          FOUND_SWF=$(find build/pkg -name "*.swf" ! -name "bundle.swf" | head -1)
+          if [ -n "$FOUND_SWF" ]; then
+            echo "Найден SWF файл: $FOUND_SWF"
+            cp "$FOUND_SWF" build/pkg/bundle.swf
+          else
+            echo "ОШИБКА: Ни одного SWF файла не найдено в архиве!"
+            exit 1
           fi
 
           if [ -d "icons" ]; then
@@ -122,7 +119,7 @@ jobs:
           else
             cat > build/pkg/application.xml <<APPXML
           <?xml version="1.0" encoding="utf-8" ?>
-          <application xmlns="http://ns.adobe.com/air/application/$AIRVER">
+          <application xmlns="http://ns.adobe.com/air/extension/$AIRVER">
             <id>com.innersloth.henry.defending</id>
             <versionNumber>1.0.0</versionNumber>
             <filename>HenryStickmin</filename>
