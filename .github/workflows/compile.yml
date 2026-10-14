@@ -40,7 +40,7 @@ jobs:
         if [ -z "$MXMLC_PATH" ]; then
           echo "Помилка: mxmlc не знайдено!"
           exit 1
-        \fi
+        fi
         
         echo "Використовуємо компилятор: $MXMLC_PATH"
         chmod +x "$MXMLC_PATH"
@@ -75,11 +75,7 @@ jobs:
         echo "Знайдено вихідники у: $SRC_DIR"
         echo "Коренева папка з ресурсами: $BUNDLE_ROOT"
 
-        # ДЕБАГ: Виводимо довідку компілятора щодо роботи з файлами перед збіркою
-        echo "=== ДОБІРКА СПРАВКИ MXMLC ==="
-        "$MXMLC_PATH" -help syntax | head -n 30 || true
-
-        # Компилируем Main.as с подключением папки через source-path или library-path
+        # Компилируем Main.as
         "$MXMLC_PATH" \
           -source-path "$SRC_DIR" \
           -output game.swf \
