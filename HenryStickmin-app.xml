@@ -5,7 +5,7 @@
   <filename>DTM</filename>
   <name>Defending The Mall</name>
   <initialWindow>
-    <content>bundle.swf</content>
+    <content>game.swf</content>
     <fullScreen>true</fullScreen>
     <aspectRatio>landscape</aspectRatio>
     <autoOrients>false</autoOrients>
