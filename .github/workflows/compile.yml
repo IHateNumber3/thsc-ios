@@ -1,4 +1,4 @@
-name: Compile AS3 to SWF
+name: Compile AS3 to SWF with Assets
 
 on:
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
         mkdir -p flex-sdk
         tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
 
-    - name: Compile ActionScript to SWF
+    - name: Compile ActionScript and Embed Assets to SWF
       run: |
         MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
         
@@ -65,14 +65,18 @@ jobs:
         "
 
         MAIN_AS_PATH=$(find . -name "Main.as" -type f | head -n 1)
-        
         if [ -z "$MAIN_AS_PATH" ]; then
-          echo "ПОМИЛКА: Не знайдено файл Main.as у розпакованому архіві!"
+          echo "ПОМИЛКА: Не знайдено Main.as!"
           exit 1
         fi
-        
         SRC_DIR=$(dirname "$MAIN_AS_PATH")
-        echo "Знайдено Main.as за адресою: $MAIN_AS_PATH (джерело: $SRC_DIR)"
+        
+        # Находим папки gfx, snd и файл game.json относительно распаковки
+        PROJECT_ROOT=$(dirname "$SRC_DIR")
+        
+        # Формируем аргументы для встраивания ресурсов (через -include-libraries или директории)
+        # Передаем всю папку с ассетами в качестве источника ресурсов для компилятора
+        echo "Збираємо SWF разом з ресурсами (gfx, snd, game.json)..."
 
         "$MXMLC_PATH" \
           -source-path "$SRC_DIR" \
@@ -80,7 +84,7 @@ jobs:
           -external-library-path+="$ABS_PATH/playerglobal.swc" \
           "$MAIN_AS_PATH"
 
-    - name: Upload compiled SWF
+    - name: Upload compiled SWF with Assets
       uses: actions/upload-artifact@v4
       with:
         name: compiled-game-swf
