@@ -13,13 +13,21 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download bundle.zip from Release (Defending)
+    - name: Download assets and SDK from Release (Defending)
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        echo "Скачуємо bundle.zip та Flex SDK напряму з релізу Defending..."
         gh release download Defending -p "bundle.zip" --dir .
+        gh release download Defending -p "apache-flex-sdk-4.16.1-bin.tar.gz" --dir .
+        
+        # Распаковываем проект (учитывая структуру bundle/...)
         mkdir -p src
-        unzip -q bundle.zip -d src
+        unzip -q bundle.zip -d extracted_bundle
+        
+        # Распаковываем локальный Flex SDK
+        mkdir -p flex-sdk
+        tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
 
     - name: Set up Java (Required for Flex SDK)
       uses: actions/setup-java@v4
@@ -27,13 +35,7 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
-    - name: Download and Setup Apache Flex SDK
-      run: |
-        wget https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz
-        mkdir -p flex-sdk
-        tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
-
-    - name: Compile ActionScript and Embed Assets to SWF
+    - name: Compile ActionScript and Embed All Assets into SWF
       run: |
         MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
         
@@ -64,23 +66,35 @@ jobs:
             f.write(content)
         "
 
-        MAIN_AS_PATH=$(find . -name "Main.as" -type f | head -n 1)
+        # Ищем Main.as внутри распакованной папки bundle
+        MAIN_AS_PATH=$(find extracted_bundle -name "Main.as" -type f | head -n 1)
         if [ -z "$MAIN_AS_PATH" ]; then
           echo "ПОМИЛКА: Не знайдено Main.as!"
           exit 1
         fi
         SRC_DIR=$(dirname "$MAIN_AS_PATH")
-        BUNDLE_DIR=$(dirname "$SRC_DIR")
+        BUNDLE_ROOT=$(dirname "$SRC_DIR") # Это папка bundle/ где лежат gfx, snd, game.json
 
-        echo "Компіляція з вбудовуванням ресурсів з: $BUNDLE_DIR"
+        echo "Знайдено вихідники у: $SRC_DIR"
+        echo "Коренева папка з ресурсами: $BUNDLE_ROOT"
 
+        # Формируем динамические аргументы -include-file для всех файлов из папки bundle, 
+        # чтобы графика (gfx), звуки (snd) и game.json запеклись внутрь SWF
+        EMBED_ARGS=""
+        while IFS= read -r file; do
+          rel_pathp1=${file#"$BUNDLE_ROOT/"}
+          EMBED_ARGS="$EMBED_ARGS -include-file $rel_pathp1 $file"
+        done < <(find "$BUNDLE_ROOT" -type f ! -name "Main.as" ! -name "*.as")
+
+        # Компилируем Main.as, вшивая все ресурсы внутрь контейнера SWF
         "$MXMLC_PATH" \
           -source-path "$SRC_DIR" \
           -output game.swf \
           -external-library-path+="$ABS_PATH/playerglobal.swc" \
+          $EMBED_ARGS \
           "$MAIN_AS_PATH"
 
-    - name: Upload compiled SWF with Assets
+    - name: Upload fully packed SWF
       uses: actions/upload-artifact@v4
       with:
         name: compiled-game-swf
