@@ -32,17 +32,20 @@ jobs:
         wget https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz
         mkdir -p flex-sdk
         tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
-        
-        # Ищем, куда именно распаковался mxmlc, и даем права
-        MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
-        chmod +x "$MXMLC_PATH"
-        echo "MXMLC found at: $MXMLC_PATH"
 
     - name: Compile ActionScript to SWF
       run: |
-        # Компилируем Main.as (главную точку входа) в полноценный game.swf
-        # Указываем путь к исходникам внутри распакованной папки
-        flex-sdk/bin/mxmlc \
+        MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
+        
+        if [ -z "$MXMLC_PATH" ]; then
+          echo "Помилка: mxmlc не знайдено!"
+          exit 1
+        fi
+        
+        echo "Використовуємо компилятор: $MXMLC_PATH"
+        chmod +x "$MXMLC_PATH"
+        
+        "$MXMLC_PATH" \
           -source-path src \
           -output game.swf \
           src/Main.as
