@@ -64,11 +64,21 @@ jobs:
             f.write(content)
         "
 
+        MAIN_AS_PATH=$(find . -name "Main.as" -type f | head -n 1)
+        
+        if [ -z "$MAIN_AS_PATH" ]; then
+          echo "ПОМИЛКА: Не знайдено файл Main.as у розпакованому архіві!"
+          exit 1
+        fi
+        
+        SRC_DIR=$(dirname "$MAIN_AS_PATH")
+        echo "Знайдено Main.as за адресою: $MAIN_AS_PATH (джерело: $SRC_DIR)"
+
         "$MXMLC_PATH" \
-          -source-path src \
+          -source-path "$SRC_DIR" \
           -output game.swf \
           -external-library-path+="$ABS_PATH/playerglobal.swc" \
-          src/Main.as
+          "$MAIN_AS_PATH"
 
     - name: Upload compiled SWF
       uses: actions/upload-artifact@v4
