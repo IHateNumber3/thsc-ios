@@ -45,15 +45,17 @@ jobs:
         echo "Використовуємо компилятор: $MXMLC_PATH"
         chmod +x "$MXMLC_PATH"
 
-        PLAYERGLOBAL_DIR="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/11.0"
-        mkdir -p "$PLAYERGLOBAL_DIR"
+        ABS_PLAYER_DIR="$(pwd)/flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/11.0"
+        mkdir -p "$ABS_PLAYER_DIR"
         
-        rm -f "$PLAYERGLOBAL_DIR/playerglobal.swc"
-        wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/11.0/playerglobal.swc
+        rm -f "$ABS_PLAYER_DIR/playerglobal.swc"
+        wget -O "$ABS_PLAYER_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/11.0/playerglobal.swc
         
-        ls -lh "$PLAYERGLOBAL_DIR/playerglobal.swc"
+        ls -lh "$ABS_PLAYER_DIR/playerglobal.swc"
 
-        sed -i 's|27.0|11.0|g' flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml
+        CONFIG_PATH="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
+        sed -i 's|{playerglobalHome}/[0-9]\+\.[0-9]\+|'$(pwd)'/flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/11.0|g' "$CONFIG_PATH"
+        sed -i 's|{playerglobalHome}/27.0|'$(pwd)'/flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/11.0|g' "$CONFIG_PATH"
 
         "$MXMLC_PATH" \
           -source-path src \
