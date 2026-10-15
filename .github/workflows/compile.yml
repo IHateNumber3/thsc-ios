@@ -16,12 +16,12 @@ jobs:
         run: |
           echo "Скачуємо файли з релізу Defending..."
           gh release download Defending -p "flash-project.zip" --dir .
-          gh release download Defending -p "defending-the-mall-vector.zip" --dir .
+          gh release download Defending -p "defending-the-mall-bitmap.zip" --dir .
           gh release download Defending -p "apache-flex-sdk-4.16.1-bin.tar.gz" --dir .
           
           mkdir -p extracted_project extracted_assets flex-sdk build_output
           unzip -q flash-project.zip -d extracted_project
-          unzip -q defending-the-mall-vector.zip -d extracted_assets
+          unzip -q defending-the-mall-bitmap.zip -d extracted_assets
           tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
 
       - name: Set up Python
@@ -86,5 +86,5 @@ jobs:
       - name: Upload compiled game artifact
         uses: actions/upload-artifact@v4
         with:
-          name: defending-the-mall-flash-build
+          name: resources-bitmap
           path: build_output/
