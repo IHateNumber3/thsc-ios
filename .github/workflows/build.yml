@@ -104,17 +104,17 @@ jobs:
             <id>com.mall.flash</id>
             <versionNumber>0.1</versionNumber>
             <filename>DefendingTheMall</filename>
-            <name>Defending the Mall</name>
+            <name>DTM</name>
             <initialWindow>
               <content>bundle.swf</content>
               <fullScreen>true</fullScreen>
               <aspectRatio>landscape</aspectRatio>
-              <autoOrients>false</autoOrients>
+              <autoOrients>true</autoOrients>
               <renderMode>gpu</renderMode>
             </initialWindow>
             <supportedProfiles>mobileDevice</supportedProfiles>
             <iPhone>
-              <requestedDisplayResolution>high</requestedDisplayResolution>
+              <requestedDisplayResolution>medium</requestedDisplayResolution>
             </iPhone>
           </application>
           APPXML
