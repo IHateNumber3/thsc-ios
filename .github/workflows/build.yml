@@ -1,7 +1,11 @@
-name: Build Henry IPA (AIR)
+name: Build Mall IPA (resources.zip)
 
 on:
   workflow_dispatch:
+    inputs:
+      res_tag:
+        description: "Release tag with resources.zip"
+        default: "Defending"
 
 jobs:
   build:
@@ -14,22 +18,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Download AIR SDK and game resources.zip from Release
+      - name: Download AIR SDK and resources.zip
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dl
           gh release download Files --repo "${{ github.repository }}" --dir dl \
             -p 'AIRSDK_MacOS.zip' || true
-          
-          if [ ! -f "dl/AIRSDK_MacOS.zip" ]; then
-            echo "AIR SDK не найден в релизе, скачиваем с сервера..."
+          if [ ! -f dl/AIRSDK_MacOS.zip ]; then
+            gh release download Files --repo IHateNumber3/thsc-ios --dir dl \
+              -p 'AIRSDK_MacOS.zip' || true
+          fi
+          if [ ! -f dl/AIRSDK_MacOS.zip ]; then
             curl -sSL "https://airsdk.harman.com/assets/downloads/33.1.1.930/AIRSDK_MacOS.zip" -o dl/AIRSDK_MacOS.zip
           fi
-
-          gh release download Defending --repo "${{ github.repository }}" --dir dl \
+          gh release download "${{ github.event.inputs.res_tag }}" --repo "${{ github.repository }}" --dir dl \
             -p 'resources.zip'
-          
           ls -lh dl
 
       - name: Unpack AIR SDK
@@ -44,104 +48,77 @@ jobs:
           echo "AIRVER=$AIRVER" >> "$GITHUB_ENV"
           echo "SDK=$SDK AIRVER=$AIRVER"
 
-      - name: Build stub ANE (replaces Windows-only FRESteamWorks)
-        run: |
-          mkdir -p build/ext stub/src/com/amanitadesign/steam
-          cat > stub/src/com/amanitadesign/steam/FRESteamWorks.as <<'AS'
-          package com.amanitadesign.steam
-          {
-          	import flash.events.EventDispatcher;
-          	import flash.events.IEventDispatcher;
-          	public class FRESteamWorks extends EventDispatcher
-          	{
-          		public function FRESteamWorks(target:IEventDispatcher = null) { super(target); }
-          		public function init():Boolean { return true; }
-          		public function isReady():Boolean { return true; }
-          		public function runCallbacks():Boolean { return true; }
-          		public function requestStats():Boolean { return true; }
-          		public function storeStats():Boolean { return true; }
-          		public function setAchievement(name:String):Boolean { return true; }
-          		public function isAchievement(name:String):Boolean { return false; }
-          		public function clearAchievement(name:String):Boolean { return true; }
-          		public function dispose():void {}
-          	}
-          }
-          AS
-          cat > build/extension.xml <<EXT
-          <extension xmlns="http://ns.adobe.com/air/extension/$AIRVER">
-          	<id>com.amanitadesign.steam.FRESteamWorks</id>
-          	<versionNumber>0.7.0</versionNumber>
-          	<platforms>
-          		<platform name="default">
-          			<applicationDeployment/>
-          		</platform>
-          	</platforms>
-          </extension>
-          EXT
-          "$SDK/bin/compc" +configname=air \
-            -source-path stub/src \
-            -include-classes com.amanitadesign.steam.FRESteamWorks \
-            -swf-version=32 \
-            -output build/stub.swc
-          mkdir -p build/swc && unzip -o build/stub.swc library.swf -d build/swc
-          java -jar "$SDK/lib/adt.jar" -package -target ane \
-            build/ext/com.amanitadesign.steam.FRESteamWorks.ane \
-            build/extension.xml -swc build/stub.swc \
-            -platform default -C build/swc library.swf
-
       - name: Assemble package folder from resources.zip
         run: |
-          mkdir -p build/pkg
-          mkdir -p tmp_res
+          mkdir -p build/pkg tmp_res
           unzip -q dl/resources.zip -d tmp_res/
-          
-          # Находим, в какой папке реально лежит game.swf внутри распакованного архива
           SWF_PATH=$(find tmp_res -name "game.swf" | head -1)
-          
-          if [ -n "$SWF_PATH" ]; then
-            SRC_DIR=$(dirname "$SWF_PATH")
-            echo "Нашли файлы в папке: $SRC_DIR"
-            # Переносим всё содержимое этой папки прямо в корень build/pkg
-            cp -r "$SRC_DIR"/* build/pkg/
-          else
-            echo "ОШИБКА: game.swf вообще не найден в архиве!"
+          if [ -z "$SWF_PATH" ]; then
+            echo "ERROR: game.swf not found in resources.zip"
             exit 1
           fi
-
-          # Переименовываем game.swf в bundle.swf для Adobe AIR
-          if [ -f "build/pkg/game.swf" ]; then
-            mv build/pkg/game.swf build/pkg/bundle.swf
-          fi
-
-          if [ -d "icons" ]; then
-            cp -R icons build/pkg/icons
+          SRC_DIR=$(dirname "$SWF_PATH")
+          echo "resources root: $SRC_DIR"
+          mv "$SRC_DIR/game.swf" build/pkg/bundle.swf
+          # the AS3 runtime loads app:/assets/game.json, app:/assets/gfx/*, app:/assets/snd/*
+          mkdir -p build/pkg/assets
+          if [ -d "$SRC_DIR/assets" ]; then
+            cp -R "$SRC_DIR/assets/." build/pkg/assets/
           else
-            mkdir -p build/pkg/icons
+            for x in game.json gfx snd; do
+              [ -e "$SRC_DIR/$x" ] && cp -R "$SRC_DIR/$x" build/pkg/assets/
+            done
           fi
+          ls -la build/pkg build/pkg/assets | head -30
 
-          if [ -f "HenryStickmin-app.xml" ]; then
-            sed -E "s#air/application/[0-9.]+#air/application/$AIRVER#" HenryStickmin-app.xml > build/pkg/application.xml
-          else
-            cat > build/pkg/application.xml <<APPXML
-          <?xml version="1.0" encoding="utf-8" ?>
-          <application xmlns="http://ns.adobe.com/air/extension/$AIRVER">
-            <id>com.innersloth.henry.defending</id>
-            <versionNumber>1.0.0</versionNumber>
-            <filename>HenryStickmin</filename>
+      - name: Sanity check assets (fail early on wrong game.json)
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          base = "build/pkg/assets"
+          g = json.load(open(base + "/game.json", encoding="utf-8"))
+          missing_key = 0
+          missing_file = 0
+          total = 0
+          for t in g["targets"]:
+              for c in t["costumes"]:
+                  total += 1
+                  f = c.get("file")
+                  if f is None:
+                      missing_key += 1
+                  elif not os.path.exists(base + "/gfx/" + f):
+                      missing_file += 1
+          print("game.json bytes", os.path.getsize(base + "/game.json"))
+          print("costumes", total, "without 'file'", missing_key, "png missing", missing_file)
+          if missing_key or missing_file > total * 0.01:
+              print("ERROR: this game.json/gfx is not the output of flash/tools/convert.py.")
+              print("Costumes need a 'file' key and a rasterized PNG in gfx/. Re-run convert.py and rebuild resources.zip.")
+              sys.exit(1)
+          PY
+
+      - name: Write app descriptor
+        run: |
+          cat > build/pkg/application.xml <<APPXML
+          <?xml version="1.0" encoding="utf-8"?>
+          <application xmlns="http://ns.adobe.com/air/application/$AIRVER">
+            <id>com.mall.flash</id>
+            <versionNumber>0.1</versionNumber>
+            <filename>DefendingTheMall</filename>
             <name>Defending the Mall</name>
             <initialWindow>
               <content>bundle.swf</content>
-              <visible>true</visible>
               <fullScreen>true</fullScreen>
-              <autoOrients>true</autoOrients>
-              <renderMode>direct</renderMode>
+              <aspectRatio>landscape</aspectRatio>
+              <autoOrients>false</autoOrients>
+              <renderMode>gpu</renderMode>
             </initialWindow>
+            <supportedProfiles>mobileDevice</supportedProfiles>
+            <iPhone>
+              <requestedDisplayResolution>high</requestedDisplayResolution>
+            </iPhone>
           </application>
           APPXML
-          fi
-          
-          echo "Итоговое содержимое папки build/pkg:"
-          ls -la build/pkg
+          cat build/pkg/application.xml
 
       - name: Dummy signing identity + fake profile (KSign re-signs later)
         run: |
@@ -149,6 +126,8 @@ jobs:
           OSSL="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"
           [ -x "$OSSL" ] || OSSL=openssl
           "$OSSL" version
+          # Apple-style development cert: CN "iPhone Developer: ...", codeSigning EKU,
+          # Apple iOS-development OID extension
           "$OSSL" req -x509 -newkey rsa:2048 -nodes -days 3650 \
             -keyout build/sign/key.pem -out build/sign/cert.pem \
             -subj "/CN=iPhone Developer: Dummy Dev (DUMMY00000)/OU=DUMMY00000/O=Dummy Dev/C=US" \
@@ -192,18 +171,16 @@ jobs:
         working-directory: build/pkg
         run: |
           find "$SDK/lib" "$SDK/bin" -type f \( -path '*/aot/*' -o -path '*/bin/*' \) -exec chmod +x {} + || true
-          xcodebuild -version
-          
           java -Xmx4g -jar "$SDK/lib/adt.jar" -package \
             -target ipa-test-interpreter \
             -storetype pkcs12 -keystore ../sign/dummy.p12 -storepass pass \
             -provisioning-profile ../sign/dummy.mobileprovision \
-            ../../HenryStickmin.ipa application.xml \
+            ../../DefendingTheMall.ipa application.xml \
             -platformsdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
-            bundle.swf game.json gfx snd icons \
-            -extdir ../ext
+            bundle.swf assets
+          ls -lh ../../DefendingTheMall.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HenryStickmin-ipa
-          path: HenryStickmin.ipa
+          name: DefendingTheMall-ipa
+          path: DefendingTheMall.ipa
