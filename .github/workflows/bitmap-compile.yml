@@ -1,0 +1,87 @@
+name: Build Flash SWF (Bitmap)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download bitmap assets and project from Release (Defending)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Скачуємо файли для bitmap-версії з релізу Defending..."
+          gh release download Defending -p "flash-project.zip" --dir .
+          gh release download Defending -p "defending-the-mall-bitmap.zip" --dir .
+          gh release download Defending -p "apache-flex-sdk-4.16.1-bin.tar.gz" --dir .
+          
+          mkdir -p extracted_project extracted_assets flex-sdk build_output
+          unzip -q flash-project.zip -d extracted_project
+          unzip -q defending-the-mall-bitmap.zip -d extracted_assets
+          tar -xzf apache-flex-sdk-4.16.1-bin.tar.gz -C flex-sdk
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install system dependencies for converter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin ffmpeg
+
+      - name: Run Converter / Preprocessor
+        run: |
+          CONVERTER_PATH=$(find extracted_project -name "convert.py" -type f | head -n 1)
+          if [ -n "$CONVERTER_PATH" ]; then
+            ASSETS_DIR=$(find extracted_assets -type d -path "*/resources/app/assets" | head -n 1)
+            if [ -z "$ASSETS_DIR" ]; then
+              ASSETS_DIR="extracted_assets"
+            fi
+            
+            echo "Використовуємо папку активів: $ASSETS_DIR"
+            python3 "$CONVERTER_PATH" "$ASSETS_DIR" build_output
+          fi
+
+      - name: Set up Java (for Flex SDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Setup Flex SDK & Compile SWF
+        run: |
+          MXMLC_PATH=$(find flex-sdk -name "mxmlc" -type f)
+          chmod +x "$MXMLC_PATH"
+
+          PLAYERGLOBAL_DIR="flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/libs/player/27.0"
+          mkdir -p "$PLAYERGLOBAL_DIR"
+          wget -O "$PLAYERGLOBAL_DIR/playerglobal.swc" https://raw.githubusercontent.com/nexussays/playerglobal/master/27.0/playerglobal.swc
+
+          python3 -c '
+          config_path = "flex-sdk/apache-flex-sdk-4.16.1-bin/frameworks/flex-config.xml"
+          with open(config_path, "r", encoding="utf-8") as f:
+              content = f.read()
+          content = content.replace("{playerglobalHome}/27.0", "libs/player/27.0")
+          content = content.replace("{playerglobalHome}", "libs/player")
+          with open(config_path, "w", encoding="utf-8") as f:
+              f.write(content)
+          '
+
+          MAIN_AS_PATH=$(find extracted_project -name "Main.as" -type f | head -n 1)
+          SRC_DIR=$(dirname "$MAIN_AS_PATH")
+
+          "$MXMLC_PATH" \
+            -source-path "$SRC_DIR" \
+            -output build_output/game.swf \
+            "$MAIN_AS_PATH"
+
+      - name: Upload compiled bitmap game artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: resources-bitmap
+          path: build_output/
