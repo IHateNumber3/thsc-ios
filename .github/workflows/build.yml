@@ -114,7 +114,7 @@ jobs:
             </initialWindow>
             <supportedProfiles>mobileDevice</supportedProfiles>
             <iPhone>
-              <requestedDisplayResolution>medium</requestedDisplayResolution>
+              <requestedDisplayResolution>standard</requestedDisplayResolution>
             </iPhone>
           </application>
           APPXML
