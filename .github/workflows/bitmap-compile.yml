@@ -44,7 +44,8 @@ jobs:
             fi
             
             echo "Використовуємо папку активів: $ASSETS_DIR"
-            python3 "$CONVERTER_PATH" "$ASSETS_DIR" build_output
+            # Подбираем зум поменьше (например, 0.5 или 0.4), чтобы растровые картинки не были гигантскими
+            python3 "$CONVERTER_PATH" "$ASSETS_DIR" build_output --zoom 0.4
           fi
 
       - name: Set up Java (for Flex SDK)
