@@ -33,7 +33,7 @@ jobs:
             curl -sSL "https://airsdk.harman.com/assets/downloads/33.1.1.930/AIRSDK_MacOS.zip" -o dl/AIRSDK_MacOS.zip
           fi
           gh release download "${{ github.event.inputs.res_tag }}" --repo "${{ github.repository }}" --dir dl \
-            -p 'resources.zip'
+            -p 'resources-bitmap.zip'
           ls -lh dl
 
       - name: Unpack AIR SDK
@@ -51,7 +51,7 @@ jobs:
       - name: Assemble package folder from resources.zip
         run: |
           mkdir -p build/pkg tmp_res
-          unzip -q dl/resources.zip -d tmp_res/
+          unzip -q dl/resources-bitmap.zip -d tmp_res/
           SWF_PATH=$(find tmp_res -name "game.swf" | head -1)
           if [ -z "$SWF_PATH" ]; then
             echo "ERROR: game.swf not found in resources.zip"
