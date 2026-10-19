@@ -86,5 +86,5 @@ jobs:
       - name: Upload compiled game artifact
         uses: actions/upload-artifact@v4
         with:
-          name: resources-bitmap
+          name: resources
           path: build_output/
