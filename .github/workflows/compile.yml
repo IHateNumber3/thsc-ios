@@ -45,7 +45,7 @@ jobs:
             
             echo "Використовуємо папку активів: $ASSETS_DIR"
             # Конвертер складывает game.json, gfx и snd прямо в папку build_output
-            python3 "$CONVERTER_PATH" "$ASSETS_DIR" build_output --zoom 2
+            python3 "$CONVERTER_PATH" "$ASSETS_DIR" build_output --zoom 0.2
           fi
 
       - name: Set up Java (for Flex SDK)
